@@ -1,0 +1,571 @@
+'use client';
+
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Link2, X } from 'lucide-react';
+import type { Platform, StreamerFormValues } from '@/types';
+import { QUALITY_OPTIONS, BILIBILI_CATEGORIES } from '@/lib/constants';
+import { toast } from 'sonner';
+
+// URL parsing patterns
+const URL_PATTERNS = {
+  bilibili: [
+    /live\.bilibili\.com\/(\d+)/,
+    /b23\.tv\/(\w+)/,
+  ],
+  huya: [
+    /huya\.com\/(\w+)/,
+  ],
+  douyu: [
+    /douyu\.com\/(\d+)/,
+  ],
+} as const;
+
+interface ParsedUrl {
+  platform: Platform;
+  roomId: string;
+  streamerId?: string;
+}
+
+function parseStreamerUrl(url: string): ParsedUrl | null {
+  try {
+    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+
+    for (const [platform, patterns] of Object.entries(URL_PATTERNS)) {
+      for (const pattern of patterns) {
+        const match = urlObj.pathname.match(pattern);
+        if (match) {
+          return {
+            platform: platform as Platform,
+            roomId: match[1],
+          };
+        }
+      }
+    }
+
+    // Try hostname matching as fallback
+    const hostname = urlObj.hostname;
+    if (hostname.includes('bilibili')) {
+      const match = urlObj.pathname.match(/\/(\d+)/);
+      if (match) {
+        return { platform: 'bilibili', roomId: match[1] };
+      }
+    } else if (hostname.includes('huya')) {
+      const match = urlObj.pathname.match(/\/(\w+)/);
+      if (match) {
+        return { platform: 'huya', roomId: match[1] };
+      }
+    } else if (hostname.includes('douyu')) {
+      const match = urlObj.pathname.match(/\/(\d+)/);
+      if (match) {
+        return { platform: 'douyu', roomId: match[1] };
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const streamerSchema = z.object({
+  platform: z.enum(['bilibili', 'huya', 'douyu'], {
+    message: '请选择平台',
+  }),
+  streamerId: z.string().min(1, '请输入主播 ID'),
+  roomId: z.string().min(1, '请输入房间号'),
+  name: z.string().min(1, '请输入主播名称'),
+  isActive: z.boolean(),
+  recordSettings: z.object({
+    quality: z.string().optional(),
+    detectHighlights: z.boolean(),
+  }),
+  uploadSettings: z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    tid: z.number().optional(),
+  }).optional(),
+});
+
+interface StreamerFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreate?: (data: StreamerFormValues) => void | Promise<void>;
+  onUpdate?: (data: StreamerFormValues) => void | Promise<void>;
+  isLoading?: boolean;
+  initialValues?: Partial<StreamerFormValues>;
+  mode?: 'create' | 'edit';
+}
+
+export function StreamerFormDialog({
+  open,
+  onOpenChange,
+  onCreate,
+  onUpdate,
+  isLoading = false,
+  initialValues,
+  mode = 'create',
+}: StreamerFormDialogProps) {
+  const form = useForm<z.infer<typeof streamerSchema>>({
+    resolver: zodResolver(streamerSchema),
+    defaultValues: {
+      platform: initialValues?.platform || 'bilibili',
+      streamerId: initialValues?.streamerId || '',
+      roomId: initialValues?.roomId || '',
+      name: initialValues?.name || '',
+      isActive: initialValues?.isActive ?? true,
+      recordSettings: {
+        quality: initialValues?.recordSettings?.quality || 'medium',
+        detectHighlights: initialValues?.recordSettings?.detectHighlights ?? false,
+      },
+      uploadSettings: {
+        title: initialValues?.uploadSettings?.title || '',
+        description: initialValues?.uploadSettings?.description || '',
+        tags: initialValues?.uploadSettings?.tags || [],
+        tid: initialValues?.uploadSettings?.tid || 171,
+      },
+    },
+  });
+
+  // URL parsing state and handler
+  const [urlInput, setUrlInput] = useState('');
+  // Tag input state
+  const [tagInput, setTagInput] = useState('');
+  const [isParsing, setIsParsing] = useState(false);
+
+  const handleParseUrl = async () => {
+    if (!urlInput.trim()) {
+      toast.error('请输入直播间链接');
+      return;
+    }
+
+    setIsParsing(true);
+    const parsed = parseStreamerUrl(urlInput.trim());
+
+    if (parsed) {
+      // Auto-fill the form
+      form.setValue('platform', parsed.platform);
+      form.setValue('roomId', parsed.roomId);
+      if (parsed.streamerId) {
+        form.setValue('streamerId', parsed.streamerId);
+      } else {
+        form.setValue('streamerId', parsed.roomId);
+      }
+      toast.success('解析成功', {
+        description: `已识别为 ${parsed.platform} 平台，房间号: ${parsed.roomId}`,
+      });
+      setUrlInput('');
+    } else {
+      toast.error('无法解析链接', {
+        description: '请检查链接是否正确，支持 B站、虎牙、斗鱼直播间链接',
+      });
+    }
+    setIsParsing(false);
+  };
+
+  // Tag handlers
+  const handleAddTag = () => {
+    const tag = tagInput.trim();
+    if (!tag) return;
+    const currentTags = form.getValues('uploadSettings.tags') || [];
+    if (currentTags.includes(tag)) {
+      toast.error('标签已存在');
+      return;
+    }
+    if (currentTags.length >= 10) {
+      toast.error('最多添加10个标签');
+      return;
+    }
+    form.setValue('uploadSettings.tags', [...currentTags, tag]);
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const currentTags = form.getValues('uploadSettings.tags') || [];
+    form.setValue(
+      'uploadSettings.tags',
+      currentTags.filter((tag) => tag !== tagToRemove)
+    );
+  };
+
+  const handleSubmit = async (values: z.infer<typeof streamerSchema>) => {
+    if (mode === 'create') {
+      await onCreate?.(values as StreamerFormValues);
+    } else {
+      await onUpdate?.(values as StreamerFormValues);
+    }
+    if (!isLoading) {
+      form.reset();
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === 'create' ? '添加主播' : '编辑主播'}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === 'create'
+              ? '添加新的主播到监控列表'
+              : '修改主播信息'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            {/* URL Parsing - only in create mode */}
+            {mode === 'create' && (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Link2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="粘贴直播间链接，自动识别平台和房间号"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleParseUrl();
+                        }
+                      }}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleParseUrl}
+                  disabled={isParsing || !urlInput.trim()}
+                >
+                  {isParsing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    '解析'
+                  )}
+                </Button>
+              </div>
+            )}
+
+            <FormField
+              control={form.control}
+              name="platform"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>平台</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择平台" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="bilibili">Bilibili</SelectItem>
+                      <SelectItem value="huya">虎牙</SelectItem>
+                      <SelectItem value="douyu">斗鱼</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="streamerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>主播 ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="平台唯一ID" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="roomId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>房间号</FormLabel>
+                    <FormControl>
+                      <Input placeholder="直播间ID" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>主播名称</FormLabel>
+                  <FormControl>
+                    <Input placeholder="输入主播名称" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="recordSettings.quality"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>录制质量</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择录制质量" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {QUALITY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    选择直播流的录制质量
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">启用监控</FormLabel>
+                      <FormDescription>
+                        是否自动检查此主播的直播状态
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="recordSettings.detectHighlights"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">检测高光</FormLabel>
+                      <FormDescription>
+                        自动检测精彩片段
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Upload Settings - 投稿设置 */}
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-sm font-medium">投稿设置</h3>
+              <p className="text-xs text-muted-foreground">
+                视频上传到B站时的默认信息
+              </p>
+
+              <FormField
+                control={form.control}
+                name="uploadSettings.title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>视频标题</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="视频标题，支持变量: {name}, {date}, {time}"
+                        {...field}
+                        value={field.value || ''}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      可使用变量: {'{name}'} = 主播名, {'{date}'} = 日期, {'{time}'} = 时间
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="uploadSettings.description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>视频简介</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="视频简介内容"
+                        className="resize-none"
+                        rows={3}
+                        {...field}
+                        value={field.value || ''}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="uploadSettings.tid"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>投稿分区</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(Number(value))}
+                      value={String(field.value || 171)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="选择投稿分区" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {BILIBILI_CATEGORIES.map((category) => (
+                          <SelectItem key={category.value} value={String(category.value)}>
+                            {category.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="uploadSettings.tags"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>标签</FormLabel>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="输入标签后按回车或点击添加"
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddTag();
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleAddTag}
+                          disabled={!tagInput.trim()}
+                        >
+                          添加
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(field.value || []).map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="secondary"
+                            className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                            onClick={() => handleRemoveTag(tag)}
+                          >
+                            {tag}
+                            <X className="ml-1 h-3 w-3" />
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <FormDescription>
+                      最多10个标签，点击标签可删除
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {mode === 'create' ? '添加' : '保存'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
