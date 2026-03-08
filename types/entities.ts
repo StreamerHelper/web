@@ -51,10 +51,10 @@ export interface Streamer {
   isActive?: boolean;
   recordSettings?: {
     quality?: string;
-    autoUpload?: boolean;
     detectHighlights?: boolean;
   };
   uploadSettings?: {
+    autoUpload?: boolean;
     title?: string;
     description?: string;
     tags?: string[];

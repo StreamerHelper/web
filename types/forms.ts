@@ -1,6 +1,7 @@
 import type { JobStatus, Platform } from './entities';
 
 export interface UploadSettings {
+  autoUpload?: boolean;
   title?: string;
   description?: string;
   tags?: string[];

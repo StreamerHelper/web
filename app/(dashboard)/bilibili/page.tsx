@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { AuthSidebar } from '@/components/content/auth-sidebar';
 import { PageHeader } from '@/components/shared/page-header';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
   Select,
@@ -13,22 +13,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AuthSidebar } from '@/components/content/auth-sidebar';
-import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/format';
+import type { BilibiliSubmission, SubmissionStatus } from '@/types';
+import { useQuery } from '@tanstack/react-query';
 import {
-  Settings,
+  AlertCircle,
+  CheckCircle,
+  Clock,
   ExternalLink,
   Loader2,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Upload,
   Send,
-  AlertCircle,
+  Settings,
+  Upload,
+  XCircle,
 } from 'lucide-react';
-import type { BilibiliSubmission, SubmissionStatus } from '@/types';
+import { useState } from 'react';
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: '等待中', icon: Clock, variant: 'secondary' },
@@ -203,21 +203,21 @@ function SubmissionCard({ submission }: SubmissionCardProps) {
 
   return (
     <Card>
-      <CardContent className="py-4">
-        <div className="flex items-start gap-4">
+      <CardContent className="py-2.5 px-4">
+        <div className="flex items-center gap-3">
           {/* Status Icon */}
           <div className={`
-            flex h-10 w-10 items-center justify-center rounded-lg
+            flex h-8 w-8 shrink-0 items-center justify-center rounded-lg
             ${submission.status === 'completed' ? 'bg-green-100 dark:bg-green-900' : ''}
             ${submission.status === 'failed' ? 'bg-red-100 dark:bg-red-900' : ''}
             ${submission.status === 'uploading' || submission.status === 'submitting' ? 'bg-blue-100 dark:bg-blue-900' : ''}
             ${submission.status === 'pending' ? 'bg-gray-100 dark:bg-gray-800' : ''}
           `}>
             {submission.status === 'uploading' || submission.status === 'submitting' ? (
-              <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
             ) : (
               <StatusIcon className={`
-                h-5 w-5
+                h-4 w-4
                 ${submission.status === 'completed' ? 'text-green-600 dark:text-green-400' : ''}
                 ${submission.status === 'failed' ? 'text-red-600 dark:text-red-400' : ''}
                 ${submission.status === 'pending' ? 'text-gray-500' : ''}
@@ -226,28 +226,14 @@ function SubmissionCard({ submission }: SubmissionCardProps) {
           </div>
 
           {/* Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-medium truncate">{submission.title}</h3>
-              <Badge variant={config.variant}>
-                {config.label}
-              </Badge>
-            </div>
-
-            <div className="text-sm text-muted-foreground mb-2">
-              ID: {submission.id.slice(0, 8)}... · 创建于 {formatTime(submission.createdAt)}
-            </div>
-
-            {/* Progress */}
-            {(submission.status === 'uploading' || submission.status === 'submitting') && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>上传进度</span>
-                  <span>{submission.completedParts} / {submission.totalParts} 片段</span>
-                </div>
-                <Progress value={progress} className="h-2" />
-              </div>
-            )}
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <h3 className="font-medium truncate text-sm">{submission.title}</h3>
+            <Badge variant={config.variant} className="text-xs px-1.5 py-0">
+              {config.label}
+            </Badge>
+            <span className="text-xs text-muted-foreground shrink-0">
+              {formatTime(submission.createdAt)}
+            </span>
 
             {/* Success - BV Link */}
             {submission.status === 'completed' && submission.bvid && (
@@ -255,7 +241,7 @@ function SubmissionCard({ submission }: SubmissionCardProps) {
                 href={`https://www.bilibili.com/video/${submission.bvid}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
               >
                 <ExternalLink className="h-3 w-3" />
                 {submission.bvid}
@@ -263,10 +249,20 @@ function SubmissionCard({ submission }: SubmissionCardProps) {
             )}
 
             {/* Failed - Error Message */}
-            {submission.status === 'failed' && submission.lastError && (
-              <p className="text-sm text-destructive">{submission.lastError}</p>
+            {submission.lastError && (
+              <span className="text-xs text-destructive truncate">{submission.lastError}</span>
             )}
           </div>
+
+          {/* Progress - Right side compact */}
+          {(submission.status === 'uploading' || submission.status === 'submitting') && (
+            <div className="flex items-center gap-2 shrink-0 w-32">
+              <Progress value={progress} className="h-1.5 flex-1" />
+              <span className="text-xs text-muted-foreground w-12 text-right">
+                {submission.completedParts}/{submission.totalParts}
+              </span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

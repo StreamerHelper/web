@@ -112,6 +112,7 @@ const streamerSchema = z.object({
     detectHighlights: z.boolean(),
   }),
   uploadSettings: z.object({
+    autoUpload: z.boolean(),
     title: z.string().optional(),
     description: z.string().optional(),
     tags: z.array(z.string()).optional(),
@@ -151,6 +152,7 @@ export function StreamerFormDialog({
         detectHighlights: initialValues?.recordSettings?.detectHighlights ?? false,
       },
       uploadSettings: {
+        autoUpload: initialValues?.uploadSettings?.autoUpload ?? true,
         title: initialValues?.uploadSettings?.title || '',
         description: initialValues?.uploadSettings?.description || '',
         tags: initialValues?.uploadSettings?.tags || [],
@@ -234,7 +236,7 @@ export function StreamerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {mode === 'create' ? '添加主播' : '编辑主播'}
@@ -283,273 +285,301 @@ export function StreamerFormDialog({
               </div>
             )}
 
-            <FormField
-              control={form.control}
-              name="platform"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>平台</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择平台" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="bilibili">Bilibili</SelectItem>
-                      <SelectItem value="huya">虎牙</SelectItem>
-                      <SelectItem value="douyu">斗鱼</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Two column layout */}
+            <div className="grid grid-cols-2 gap-6">
+              {/* Left Column - 录制设置 */}
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">基本信息</h3>
+                  <p className="text-xs text-muted-foreground">
+                    主播识别和录制配置
+                  </p>
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="streamerId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>主播 ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="平台唯一ID" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="platform"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>平台</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择平台" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="bilibili">Bilibili</SelectItem>
+                          <SelectItem value="huya">虎牙</SelectItem>
+                          <SelectItem value="douyu">斗鱼</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="roomId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>房间号</FormLabel>
-                    <FormControl>
-                      <Input placeholder="直播间ID" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="streamerId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>主播 ID</FormLabel>
+                        <FormControl>
+                          <Input placeholder="平台唯一ID" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>主播名称</FormLabel>
-                  <FormControl>
-                    <Input placeholder="输入主播名称" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                  <FormField
+                    control={form.control}
+                    name="roomId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>房间号</FormLabel>
+                        <FormControl>
+                          <Input placeholder="直播间ID" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-            <FormField
-              control={form.control}
-              name="recordSettings.quality"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>录制质量</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择录制质量" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {QUALITY_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    选择直播流的录制质量
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="space-y-4">
-              <FormField
-                control={form.control}
-                name="isActive"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">启用监控</FormLabel>
-                      <FormDescription>
-                        是否自动检查此主播的直播状态
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="recordSettings.detectHighlights"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">检测高光</FormLabel>
-                      <FormDescription>
-                        自动检测精彩片段
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Upload Settings - 投稿设置 */}
-            <div className="space-y-4 pt-4 border-t">
-              <h3 className="text-sm font-medium">投稿设置</h3>
-              <p className="text-xs text-muted-foreground">
-                视频上传到B站时的默认信息
-              </p>
-
-              <FormField
-                control={form.control}
-                name="uploadSettings.title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>视频标题</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="视频标题，支持变量: {name}, {date}, {time}"
-                        {...field}
-                        value={field.value || ''}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      可使用变量: {'{name}'} = 主播名, {'{date}'} = 日期, {'{time}'} = 时间
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="uploadSettings.description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>视频简介</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="视频简介内容"
-                        className="resize-none"
-                        rows={3}
-                        {...field}
-                        value={field.value || ''}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="uploadSettings.tid"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>投稿分区</FormLabel>
-                    <Select
-                      onValueChange={(value) => field.onChange(Number(value))}
-                      value={String(field.value || 171)}
-                    >
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>主播名称</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择投稿分区" />
-                        </SelectTrigger>
+                        <Input placeholder="输入主播名称" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        {BILIBILI_CATEGORIES.map((category) => (
-                          <SelectItem key={category.value} value={String(category.value)}>
-                            {category.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="uploadSettings.tags"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>标签</FormLabel>
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="输入标签后按回车或点击添加"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddTag();
-                            }
-                          }}
+                <FormField
+                  control={form.control}
+                  name="recordSettings.quality"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>录制质量</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择录制质量" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {QUALITY_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="space-y-3">
+                  <FormField
+                    control={form.control}
+                    name="isActive"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-sm">启用监控</FormLabel>
+                          <FormDescription className="text-xs">
+                            自动检查直播状态
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="recordSettings.detectHighlights"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-sm">检测高光</FormLabel>
+                          <FormDescription className="text-xs">
+                            自动检测精彩片段
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Right Column - 投稿设置 */}
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">投稿设置</h3>
+                  <p className="text-xs text-muted-foreground">
+                    视频上传到B站的默认信息
+                  </p>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="uploadSettings.autoUpload"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-sm">启用投稿</FormLabel>
+                        <FormDescription className="text-xs">
+                          录制完成后自动投稿
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
                         />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={handleAddTag}
-                          disabled={!tagInput.trim()}
-                        >
-                          添加
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {(field.value || []).map((tag) => (
-                          <Badge
-                            key={tag}
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="uploadSettings.title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>视频标题</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="支持变量: {name}, {date}, {time}"
+                          {...field}
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="uploadSettings.tid"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>投稿分区</FormLabel>
+                      <Select
+                        onValueChange={(value) => field.onChange(Number(value))}
+                        value={String(field.value || 171)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择投稿分区" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {BILIBILI_CATEGORIES.map((category) => (
+                            <SelectItem key={category.value} value={String(category.value)}>
+                              {category.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="uploadSettings.tags"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>标签</FormLabel>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="输入标签"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddTag();
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
                             variant="secondary"
-                            className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
-                            onClick={() => handleRemoveTag(tag)}
+                            size="icon"
+                            onClick={handleAddTag}
+                            disabled={!tagInput.trim()}
                           >
-                            {tag}
-                            <X className="ml-1 h-3 w-3" />
-                          </Badge>
-                        ))}
+                            <X className="h-4 w-4 rotate-45" />
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-1 min-h-[28px]">
+                          {(field.value || []).map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="secondary"
+                              className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                              onClick={() => handleRemoveTag(tag)}
+                            >
+                              {tag}
+                              <X className="ml-1 h-3 w-3" />
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                    <FormDescription>
-                      最多10个标签，点击标签可删除
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="uploadSettings.description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>视频简介</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="视频简介内容"
+                          className="resize-none"
+                          rows={3}
+                          {...field}
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="mt-6">
               <Button
                 type="button"
                 variant="outline"
