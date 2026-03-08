@@ -1,7 +1,16 @@
 {
-  "name": "fe",
+  "name": "web",
   "version": "0.1.0",
   "private": true,
+  "description": "StreamerHelper Web Dashboard - monitoring, recording, and auto-uploading live streams",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StreamerHelper/web"
+  },
+  "bugs": {
+    "url": "https://github.com/StreamerHelper/web/issues"
+  },
+  "homepage": "https://github.com/StreamerHelper/web#readme",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
