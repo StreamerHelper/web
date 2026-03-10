@@ -1,6 +1,6 @@
 {
-  "name": "web",
-  "version": "0.1.0",
+  "name": "@streamerhelper/web",
+  "version": "2.0.0",
   "private": true,
   "description": "StreamerHelper Web Dashboard - monitoring, recording, and auto-uploading live streams",
   "repository": {
