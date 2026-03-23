@@ -4,12 +4,10 @@ import { zhCN } from 'date-fns/locale';
 
 /**
  * Format relative time (e.g., "5分钟前")
- * Handles timezone properly
  */
 export function formatRelativeTime(date: string | Date | null | undefined): string {
   if (!date) return '-';
 
-  // Parse date - ensure strings without timezone are treated as local time
   const dateObj = typeof date === 'string' ? new Date(date) : date;
 
   // Check if date is valid

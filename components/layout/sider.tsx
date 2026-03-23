@@ -29,11 +29,11 @@ const mainNavItems = [
     href: '/jobs',
     icon: ListVideo,
   },
-  {
-    title: '系统监控',
-    href: '/system',
-    icon: Activity,
-  },
+  // {
+  //   title: '系统监控',
+  //   href: '/system',
+  //   icon: Activity,
+  // },
   {
     title: '内容浏览',
     href: '/content',
