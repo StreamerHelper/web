@@ -42,7 +42,7 @@ export function useJob(id: string) {
   });
 }
 
-export function useJobBrowse(filters?: { streamerName?: string; startDate?: string; endDate?: string }) {
+export function useJobBrowse(filters?: { streamerName?: string; startDate?: string; endDate?: string; minSegmentCount?: number }) {
   return useQuery({
     queryKey: ['jobs', 'browse', filters],
     queryFn: () => api.getJobBrowse(filters),

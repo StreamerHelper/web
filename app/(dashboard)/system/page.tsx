@@ -107,8 +107,8 @@ export default function SystemPage() {
                       <span>{info?.system?.arch || '-'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Node</span>
-                      <span>{info?.system?.nodeVersion || '-'}</span>
+                      <span className="text-muted-foreground">版本</span>
+                      <span>{info?.system?.version || '-'}</span>
                     </div>
                   </div>
                 </CardContent>

@@ -157,7 +157,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-muted-foreground">系统状态</p>
                   <p className="text-2xl font-bold mt-1">{health?.status === 'ok' ? '正常' : '异常'}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {systemInfo?.system?.nodeVersion ?? '未知版本'}
+                    {systemInfo?.system?.version ?? '未知版本'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

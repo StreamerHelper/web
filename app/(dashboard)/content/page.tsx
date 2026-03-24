@@ -13,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +43,10 @@ export default function ContentPage() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
 
+  // Segment count filter
+  const [segmentFilterEnabled, setSegmentFilterEnabled] = useState(true);
+  const [minSegmentCount, setMinSegmentCount] = useState(5);
+
   // Temporary date selection state (for popover, not triggered until confirmed)
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [tempStartDate, setTempStartDate] = useState<Date | undefined>();
@@ -51,6 +57,7 @@ export default function ContentPage() {
     streamerName: streamerName === 'all' ? undefined : streamerName,
     startDate: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
     endDate: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
+    minSegmentCount: segmentFilterEnabled ? minSegmentCount : undefined,
   });
   const { data: jobVideos, isLoading: videosLoading } = useJobVideos(selectedJobId);
 
@@ -108,6 +115,8 @@ export default function ContentPage() {
     setStreamerName('all');
     setStartDate(undefined);
     setEndDate(undefined);
+    setSegmentFilterEnabled(false);
+    setMinSegmentCount(5);
   };
 
   // Handle submit success
@@ -128,7 +137,7 @@ export default function ContentPage() {
     console.log('Download job:', job.jobId);
   };
 
-  const hasFilters = streamerName !== 'all' || startDate || endDate;
+  const hasFilters = streamerName !== 'all' || startDate || endDate || segmentFilterEnabled;
 
   // Format date range for display
   const formatDateRange = () => {
@@ -218,6 +227,29 @@ export default function ContentPage() {
             />
           </PopoverContent>
         </Popover>
+
+        {/* Segment Count Filter */}
+        <div className="flex items-center gap-2 border rounded-md px-3 py-2">
+          <Switch
+            id="segment-filter"
+            checked={segmentFilterEnabled}
+            onCheckedChange={setSegmentFilterEnabled}
+          />
+          <label
+            htmlFor="segment-filter"
+            className="text-sm font-medium cursor-pointer"
+          >
+            片段数 &gt;
+          </label>
+          <Input
+            type="number"
+            min="1"
+            value={minSegmentCount}
+            onChange={(e) => setMinSegmentCount(parseInt(e.target.value) || 1)}
+            disabled={!segmentFilterEnabled}
+            className="w-16 h-8"
+          />
+        </div>
 
         {/* Clear Filters */}
         {hasFilters && (

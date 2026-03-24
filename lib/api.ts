@@ -106,11 +106,12 @@ export const api = {
     (await client.post<{ success: boolean; message: string }>(`/api/jobs/${id}/delete`)).data,
 
   // Content browsing
-  getJobBrowse: async (filters?: { streamerName?: string; startDate?: string; endDate?: string }) => {
+  getJobBrowse: async (filters?: { streamerName?: string; startDate?: string; endDate?: string; minSegmentCount?: number }) => {
     const params = new URLSearchParams();
     if (filters?.streamerName) params.set('streamerName', filters.streamerName);
     if (filters?.startDate) params.set('startDate', filters.startDate);
     if (filters?.endDate) params.set('endDate', filters.endDate);
+    if (filters?.minSegmentCount !== undefined) params.set('minSegmentCount', String(filters.minSegmentCount));
     const query = params.toString();
     const response = await client.get<{ groups: JobGroup[] }>(`/api/jobs/browse${query ? `?${query}` : ''}`);
     return response.data.groups;

@@ -127,7 +127,7 @@ export interface SystemInfo {
   system: {
     platform: string;
     arch: string;
-    nodeVersion: string;
+    version: string;
     uptime: number;
     memory: NodeJS.MemoryUsage;
   };
