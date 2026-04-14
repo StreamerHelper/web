@@ -1,4 +1,4 @@
-import type { JobStatus, Platform } from './entities';
+import type { JobStatus, Platform, RecordingQuality } from './entities';
 
 export interface UploadSettings {
   autoUpload?: boolean;
@@ -15,7 +15,7 @@ export interface StreamerFormValues {
   roomId: string;
   isActive: boolean;
   recordSettings: {
-    quality?: string;
+    quality?: RecordingQuality;
     detectHighlights?: boolean;
   };
   uploadSettings?: UploadSettings;

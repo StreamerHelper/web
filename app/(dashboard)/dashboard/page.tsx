@@ -5,6 +5,7 @@ import { JobTableRow } from '@/components/shared/job-table-row';
 import { StatsCardSkeleton } from '@/components/shared/loading';
 import { PageHeader } from '@/components/shared/page-header';
 import { PlatformIcon } from '@/components/shared/platform-icon';
+import { QualityBadge } from '@/components/shared/quality-badge';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -337,6 +338,27 @@ export default function DashboardPage() {
                             <span className="ml-2">{selectedJob.metadata.resolution}</span>
                           </div>
                         )}
+                        {(selectedJob.metadata.requestedQuality ||
+                          selectedJob.metadata.effectiveQuality) && (
+                          <div>
+                            <span className="text-muted-foreground">清晰度链路:</span>
+                            <span className="ml-2 inline-flex items-center gap-2">
+                              <QualityBadge
+                                quality={selectedJob.metadata.requestedQuality}
+                                variant="outline"
+                                fallback="未设置"
+                              />
+                              {selectedJob.metadata.effectiveQuality && (
+                                <>
+                                  <span className="text-muted-foreground">→</span>
+                                  <QualityBadge
+                                    quality={selectedJob.metadata.effectiveQuality}
+                                  />
+                                </>
+                              )}
+                            </span>
+                          </div>
+                        )}
                         {selectedJob.metadata.bitrate && (
                           <div>
                             <span className="text-muted-foreground">码率:</span>
@@ -347,6 +369,12 @@ export default function DashboardPage() {
                           <div>
                             <span className="text-muted-foreground">编码:</span>
                             <span className="ml-2">{selectedJob.metadata.codec}</span>
+                          </div>
+                        )}
+                        {selectedJob.metadata.qualityNote && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">说明:</span>
+                            <span className="ml-2">{selectedJob.metadata.qualityNote}</span>
                           </div>
                         )}
                       </div>

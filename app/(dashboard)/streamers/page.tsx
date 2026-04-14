@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { TableSkeleton } from '@/components/shared/loading';
 import { PageHeader } from '@/components/shared/page-header';
 import { PlatformIcon } from '@/components/shared/platform-icon';
+import { QualityBadge } from '@/components/shared/quality-badge';
 import { StreamerFormDialog } from '@/components/streamers/streamer-form';
 import {
   AlertDialog,
@@ -222,6 +223,7 @@ export default function StreamersPage() {
                 <TableHead>平台</TableHead>
                 <TableHead>房间号</TableHead>
                 <TableHead>状态</TableHead>
+                <TableHead>录制清晰度</TableHead>
                 <TableHead>直播状态</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -258,6 +260,14 @@ export default function StreamersPage() {
                         disabled={updateMutation.isPending}
                         onCheckedChange={() => handleToggleActive(streamer)}
                       />
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <QualityBadge quality={streamer.recordSettings?.quality} />
+                        <div className="text-xs text-muted-foreground">
+                          {streamer.recordSettings?.detectHighlights ? '启用高光检测' : '未启用高光检测'}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {checking ? (

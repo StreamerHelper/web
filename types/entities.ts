@@ -1,4 +1,5 @@
 export type Platform = 'bilibili' | 'huya' | 'douyu';
+export type RecordingQuality = 'low' | 'medium' | 'high';
 
 export type JobStatus = 'pending' | 'recording' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'stopping';
 
@@ -50,7 +51,7 @@ export interface Streamer {
   roomId: string;
   isActive?: boolean;
   recordSettings?: {
-    quality?: string;
+    quality?: RecordingQuality;
     detectHighlights?: boolean;
   };
   uploadSettings?: {
@@ -95,6 +96,11 @@ export interface Job {
 export interface JobMetadata {
   stream_url: string;
   danmaku_url: string;
+  requestedQuality?: RecordingQuality;
+  effectiveQuality?: RecordingQuality;
+  qualityApplied?: boolean;
+  qualityNote?: string;
+  ffmpegRequestedQuality?: RecordingQuality;
   resolution?: string;
   bitrate?: number;
   codec?: string;

@@ -1,5 +1,6 @@
 import type { Job } from '@/types';
 import { PlatformIcon } from './platform-icon';
+import { QualityBadge } from './quality-badge';
 import { StatusBadge } from './status-badge';
 import { formatDuration, formatRelativeTime } from '@/lib/format';
 import { ExternalLink } from 'lucide-react';
@@ -56,11 +57,24 @@ export function JobTableRow({ job, onClick, onStop, onRetry, onDelete }: JobTabl
         <StatusBadge status={job.status} />
       </TableCell>
       <TableCell className="py-2 px-3">
-        {job.segmentCount > 0 ? (
-          <span className="text-sm">{job.segmentCount} 个片段</span>
-        ) : (
-          <span className="text-sm text-muted-foreground">-</span>
-        )}
+        <div className="space-y-1">
+          {job.segmentCount > 0 ? (
+            <span className="text-sm">{job.segmentCount} 个片段</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">-</span>
+          )}
+          <div className="flex items-center gap-2">
+            <QualityBadge
+              quality={job.metadata?.requestedQuality}
+              variant="outline"
+              fallback="未设置"
+            />
+            {job.metadata?.effectiveQuality &&
+              job.metadata.effectiveQuality !== job.metadata.requestedQuality && (
+                <QualityBadge quality={job.metadata.effectiveQuality} />
+              )}
+          </div>
+        </div>
       </TableCell>
       <TableCell className="text-muted-foreground py-2 px-3">
         {formatRelativeTime(job.startTime)}

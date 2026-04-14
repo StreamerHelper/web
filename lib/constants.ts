@@ -29,10 +29,16 @@ export const PLATFORM_ROOM_URLS = {
 } as const;
 
 export const QUALITY_OPTIONS = [
-  { value: 'low', label: '低画质' },
-  { value: 'medium', label: '中画质' },
-  { value: 'high', label: '高画质' },
+  { value: 'low', label: '低画质', description: '优先省流量，命中平台低档画质' },
+  { value: 'medium', label: '中画质', description: '默认档位，兼顾清晰度与稳定性' },
+  { value: 'high', label: '高画质', description: '优先原画或平台最高可用档位' },
 ] as const;
+
+export const QUALITY_LABELS = {
+  low: '低画质',
+  medium: '中画质',
+  high: '高画质',
+} as const;
 
 export const REFRESH_INTERVALS = {
   DASHBOARD: 5000,

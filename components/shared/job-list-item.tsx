@@ -1,5 +1,6 @@
 import type { Job } from '@/types';
 import { PlatformIcon } from './platform-icon';
+import { QualityBadge } from './quality-badge';
 import { StatusBadge } from './status-badge';
 import { formatDuration, formatRelativeTime } from '@/lib/format';
 
@@ -44,9 +45,17 @@ export function JobListItem({ job, onClick }: JobListItemProps) {
         {/* Metadata Info */}
         <div className="text-right text-xs text-muted-foreground">
           <div>{job.segmentCount > 0 ? `${job.segmentCount} 片段` : '-'}</div>
-          {job.metadata?.resolution && (
-            <div>{job.metadata.resolution}</div>
-          )}
+          <div className="flex justify-end gap-1">
+            <QualityBadge
+              quality={job.metadata?.requestedQuality}
+              variant="outline"
+              fallback="-"
+            />
+            {job.metadata?.effectiveQuality &&
+              job.metadata.effectiveQuality !== job.metadata.requestedQuality && (
+                <QualityBadge quality={job.metadata.effectiveQuality} />
+              )}
+          </div>
         </div>
 
         {/* Status Badge */}

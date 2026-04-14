@@ -367,9 +367,9 @@ export function StreamerFormDialog({
                   control={form.control}
                   name="recordSettings.quality"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>录制质量</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormItem>
+                        <FormLabel>录制质量</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="选择录制质量" />
@@ -383,6 +383,9 @@ export function StreamerFormDialog({
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormDescription>
+                        保存到主播配置，自动录制、手动开始和重试都会沿用这项清晰度请求。
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
