@@ -26,7 +26,7 @@ import { formatDuration, formatTime } from '@/lib/format';
 import type { BrowsedJob, BilibiliSubmission } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { Calendar, Clock, Download, HardDrive, MoreVertical, Play, Upload, X } from 'lucide-react';
+import { Calendar, Clock, Download, HardDrive, MoreVertical, Upload, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { JobVideoDialog } from '../../../components/content/job-video-dialog';
 import { SubmitDialog } from '../../../components/content/submit-dialog';
@@ -336,6 +336,25 @@ interface JobCardProps {
   onDownload: () => void;
 }
 
+function PlatformCoverPlaceholder({ platform }: { platform: BrowsedJob['platform'] }) {
+  const logoMap: Record<BrowsedJob['platform'], string> = {
+    bilibili: '/platform-logos/bilibili.ico',
+    huya: '/platform-logos/huya.ico',
+    douyu: '/platform-logos/douyu.ico',
+  };
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <img
+        src={logoMap[platform]}
+        alt=""
+        aria-hidden="true"
+        className="h-14 w-14 object-contain opacity-95 drop-shadow-[0_10px_24px_rgba(0,0,0,0.14)] dark:drop-shadow-[0_10px_24px_rgba(0,0,0,0.32)]"
+      />
+    </div>
+  );
+}
+
 function JobCard({ job, onPlay, onSubmit, onDownload }: JobCardProps) {
   const [coverLoadFailed, setCoverLoadFailed] = useState(false);
   const hasCover = Boolean(job.coverUrl && !coverLoadFailed);
@@ -354,13 +373,13 @@ function JobCard({ job, onPlay, onSubmit, onDownload }: JobCardProps) {
             onError={() => setCoverLoadFailed(true)}
           />
         )}
-        <div className={`absolute inset-0 ${hasCover ? 'bg-black/20' : 'bg-muted'}`} />
-        <PlatformIcon platform={job.platform} className="relative z-10 h-8 w-8 text-muted-foreground/50" />
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
-            <Play className="h-6 w-6 text-primary ml-0.5" />
-          </div>
-        </div>
+        {hasCover && <div className="absolute inset-0 bg-black/20" />}
+        {!hasCover && (
+          <>
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0)_55%),linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,0.18))]" />
+            <PlatformCoverPlaceholder platform={job.platform} />
+          </>
+        )}
         <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs">
           {formatDuration(job.duration)}
         </div>
@@ -372,8 +391,10 @@ function JobCard({ job, onPlay, onSubmit, onDownload }: JobCardProps) {
           {job.title}
         </h4>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <PlatformIcon platform={job.platform} />
-          <span>{job.streamerName}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <PlatformIcon platform={job.platform} />
+            <span>{job.streamerName}</span>
+          </span>
           <span className="text-muted-foreground/60">·</span>
           <span>{formatTime(job.startTime)}</span>
         </div>
