@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -33,7 +33,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Link2, X } from 'lucide-react';
+import { Loader2, Link2, Upload, X } from 'lucide-react';
 import type { Platform, StreamerFormValues } from '@/types';
 import { QUALITY_OPTIONS, BILIBILI_CATEGORIES } from '@/lib/constants';
 import { toast } from 'sonner';
@@ -107,13 +107,17 @@ const streamerSchema = z.object({
   roomId: z.string().min(1, '请输入房间号'),
   name: z.string().min(1, '请输入主播名称'),
   isActive: z.boolean(),
+  coverPath: z.string().nullable().optional(),
+  coverUrl: z.string().nullable().optional(),
+  coverDataUrl: z.string().optional(),
+  removeCover: z.boolean().optional(),
   recordSettings: z.object({
     quality: z.string().optional(),
     detectHighlights: z.boolean(),
   }),
   uploadSettings: z.object({
     autoUpload: z.boolean(),
-    title: z.string().optional(),
+    title: z.string().max(80, '标题模板最多80个字符').optional(),
     description: z.string().optional(),
     tags: z.array(z.string()).optional(),
     tid: z.number().optional(),
@@ -139,26 +143,34 @@ export function StreamerFormDialog({
   initialValues,
   mode = 'create',
 }: StreamerFormDialogProps) {
+  const buildDefaultValues = (
+    values?: Partial<StreamerFormValues>
+  ): z.infer<typeof streamerSchema> => ({
+    platform: values?.platform || 'bilibili',
+    streamerId: values?.streamerId || '',
+    roomId: values?.roomId || '',
+    name: values?.name || '',
+    isActive: values?.isActive ?? true,
+    coverPath: values?.coverPath ?? null,
+    coverUrl: values?.coverUrl ?? null,
+    coverDataUrl: undefined,
+    removeCover: false,
+    recordSettings: {
+      quality: values?.recordSettings?.quality || 'medium',
+      detectHighlights: values?.recordSettings?.detectHighlights ?? false,
+    },
+    uploadSettings: {
+      autoUpload: values?.uploadSettings?.autoUpload ?? true,
+      title: values?.uploadSettings?.title || '',
+      description: values?.uploadSettings?.description || '',
+      tags: values?.uploadSettings?.tags || [],
+      tid: values?.uploadSettings?.tid || 171,
+    },
+  });
+
   const form = useForm<z.infer<typeof streamerSchema>>({
     resolver: zodResolver(streamerSchema),
-    defaultValues: {
-      platform: initialValues?.platform || 'bilibili',
-      streamerId: initialValues?.streamerId || '',
-      roomId: initialValues?.roomId || '',
-      name: initialValues?.name || '',
-      isActive: initialValues?.isActive ?? true,
-      recordSettings: {
-        quality: initialValues?.recordSettings?.quality || 'medium',
-        detectHighlights: initialValues?.recordSettings?.detectHighlights ?? false,
-      },
-      uploadSettings: {
-        autoUpload: initialValues?.uploadSettings?.autoUpload ?? true,
-        title: initialValues?.uploadSettings?.title || '',
-        description: initialValues?.uploadSettings?.description || '',
-        tags: initialValues?.uploadSettings?.tags || [],
-        tid: initialValues?.uploadSettings?.tid || 171,
-      },
-    },
+    defaultValues: buildDefaultValues(initialValues),
   });
 
   // URL parsing state and handler
@@ -166,6 +178,20 @@ export function StreamerFormDialog({
   // Tag input state
   const [tagInput, setTagInput] = useState('');
   const [isParsing, setIsParsing] = useState(false);
+  const [coverPreview, setCoverPreview] = useState<string | null>(
+    initialValues?.coverUrl || null
+  );
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    form.reset(buildDefaultValues(initialValues));
+    setCoverPreview(initialValues?.coverUrl || null);
+    setTagInput('');
+  }, [form, initialValues, open]);
 
   const handleParseUrl = async () => {
     if (!urlInput.trim()) {
@@ -231,6 +257,55 @@ export function StreamerFormDialog({
     if (!isLoading) {
       form.reset();
       onOpenChange(false);
+    }
+  };
+
+  const handleSelectCover = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('封面仅支持 JPG、PNG 或 WebP');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('封面不能超过 5MB');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read cover file'));
+        reader.readAsDataURL(file);
+      });
+
+      form.setValue('coverDataUrl', dataUrl, { shouldDirty: true });
+      form.setValue('removeCover', false, { shouldDirty: true });
+      setCoverPreview(dataUrl);
+      event.target.value = '';
+    } catch {
+      toast.error('读取封面文件失败');
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveCover = () => {
+    setCoverPreview(null);
+    form.setValue('coverDataUrl', undefined, { shouldDirty: true });
+    form.setValue(
+      'removeCover',
+      Boolean(form.getValues('coverPath') || initialValues?.coverPath),
+      { shouldDirty: true }
+    );
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -363,6 +438,54 @@ export function StreamerFormDialog({
                   )}
                 />
 
+                <FormItem>
+                  <FormLabel>主播封面</FormLabel>
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <div className="relative aspect-video overflow-hidden rounded-md bg-muted">
+                      {coverPreview ? (
+                        <img
+                          src={coverPreview}
+                          alt="主播封面预览"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                          未上传封面
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleSelectCover}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {coverPreview ? '更换封面' : '上传封面'}
+                      </Button>
+                      {coverPreview && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleRemoveCover}
+                        >
+                          删除封面
+                        </Button>
+                      )}
+                    </div>
+                    <FormDescription className="text-xs">
+                      支持 JPG、PNG、WebP，大小不超过 5MB。投稿到 B 站时会默认使用这张封面。
+                    </FormDescription>
+                  </div>
+                </FormItem>
+
                 <FormField
                   control={form.control}
                   name="recordSettings.quality"
@@ -474,11 +597,17 @@ export function StreamerFormDialog({
                       <FormLabel>视频标题</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="支持变量: {name}, {date}, {time}"
+                          placeholder="支持模板变量: {streamerName}, {date}, {time}"
                           {...field}
                           value={field.value || ''}
                         />
                       </FormControl>
+                      <FormDescription className="text-xs">
+                        留空时使用系统默认模板。可用变量：
+                        {` {streamerName} `}
+                        、{`{date}`}、{`{time}`}。例如：
+                        {` {streamerName}的直播录像 {date} {time}`}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

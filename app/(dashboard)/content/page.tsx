@@ -337,14 +337,25 @@ interface JobCardProps {
 }
 
 function JobCard({ job, onPlay, onSubmit, onDownload }: JobCardProps) {
+  const [coverLoadFailed, setCoverLoadFailed] = useState(false);
+  const hasCover = Boolean(job.coverUrl && !coverLoadFailed);
+
   return (
     <div className="group rounded-lg border bg-card overflow-hidden hover:shadow-md transition-all">
-      {/* Thumbnail Placeholder */}
       <div
-        className="relative aspect-video bg-muted flex items-center justify-center cursor-pointer"
+        className="relative aspect-video bg-muted flex items-center justify-center cursor-pointer overflow-hidden"
         onClick={onPlay}
       >
-        <PlatformIcon platform={job.platform} className="h-8 w-8 text-muted-foreground/50" />
+        {hasCover && (
+          <img
+            src={job.coverUrl!}
+            alt={`${job.streamerName} 封面`}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            onError={() => setCoverLoadFailed(true)}
+          />
+        )}
+        <div className={`absolute inset-0 ${hasCover ? 'bg-black/20' : 'bg-muted'}`} />
+        <PlatformIcon platform={job.platform} className="relative z-10 h-8 w-8 text-muted-foreground/50" />
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
           <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
             <Play className="h-6 w-6 text-primary ml-0.5" />

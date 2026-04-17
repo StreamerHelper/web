@@ -14,6 +14,10 @@ export interface StreamerFormValues {
   platform: Platform;
   roomId: string;
   isActive: boolean;
+  coverPath?: string | null;
+  coverUrl?: string | null;
+  coverDataUrl?: string;
+  removeCover?: boolean;
   recordSettings: {
     quality?: RecordingQuality;
     detectHighlights?: boolean;

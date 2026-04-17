@@ -16,6 +16,7 @@ export interface BrowsedJob {
   segmentCount: number;
   startTime: string;
   endTime: string;
+  coverUrl?: string | null;
 }
 
 // Job group for date-based grouping
@@ -50,6 +51,8 @@ export interface Streamer {
   platform: Platform;
   roomId: string;
   isActive?: boolean;
+  coverPath?: string | null;
+  coverUrl?: string | null;
   recordSettings?: {
     quality?: RecordingQuality;
     detectHighlights?: boolean;
