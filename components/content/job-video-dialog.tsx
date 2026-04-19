@@ -1,6 +1,7 @@
 'use client';
 
 import { PlatformIcon } from '@/components/shared/platform-icon';
+import { DanmakuChatPanel } from '@/components/content/danmaku-chat-panel';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -8,11 +9,17 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { api } from '@/lib';
 import { formatDuration, formatFileSize } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { JobVideosResponse, VideoSegment } from '@/types';
-import { ChevronLeft, Download, Layers, SkipForward } from 'lucide-react';
+import { ChevronLeft, Download, Layers, MessageSquare, SkipForward } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -30,8 +37,9 @@ interface JobVideoDialogProps {
 }
 
 // 固定尺寸
-const DIALOG_WIDTH = 960;
+const DIALOG_WIDTH = 1240;
 const SIDEBAR_WIDTH = 240;
+const DANMAKU_PANEL_WIDTH = 300;
 const VIDEO_HEIGHT = 480;
 
 // 合并下载响应类型
@@ -47,10 +55,19 @@ interface VideoPlayerInnerProps {
   video?: VideoSegment;
   autoPlay?: boolean;
   onEnded?: () => void;
+  onPlaybackTimeChange?: (currentTimeMs: number) => void;
 }
 
 const VideoPlayerInner = forwardRef<HTMLVideoElement, VideoPlayerInnerProps>(
-  ({ video, autoPlay, onEnded }, ref) => {
+  (
+    {
+      video,
+      autoPlay,
+      onEnded,
+      onPlaybackTimeChange,
+    },
+    ref
+  ) => {
     const internalRef = useRef<HTMLVideoElement>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -66,6 +83,12 @@ const VideoPlayerInner = forwardRef<HTMLVideoElement, VideoPlayerInnerProps>(
         internalRef.current.play().catch(() => {});
       }
     }, [video?.playUrl, autoPlay]);
+
+    const emitPlaybackTime = () => {
+      onPlaybackTimeChange?.(
+        (internalRef.current?.currentTime || 0) * 1000
+      );
+    };
 
     if (!video) {
       return (
@@ -89,9 +112,18 @@ const VideoPlayerInner = forwardRef<HTMLVideoElement, VideoPlayerInnerProps>(
           ref={internalRef}
           src={video.playUrl}
           className="w-full h-full bg-black"
-          onEnded={onEnded}
-          onLoadedData={() => setIsLoading(false)}
+          onEnded={() => {
+            emitPlaybackTime();
+            onEnded?.();
+          }}
+          onLoadedData={() => {
+            setIsLoading(false);
+            emitPlaybackTime();
+          }}
           onCanPlay={() => setIsLoading(false)}
+          onLoadedMetadata={emitPlaybackTime}
+          onTimeUpdate={emitPlaybackTime}
+          onSeeked={emitPlaybackTime}
           controls
           autoPlay={autoPlay}
         />
@@ -116,6 +148,8 @@ export function JobVideoDialog({
 }: JobVideoDialogProps) {
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [isMerging, setIsMerging] = useState(false);
+  const [isExportingDanmaku, setIsExportingDanmaku] = useState<string | null>(null);
+  const [playbackOffsetMs, setPlaybackOffsetMs] = useState(0);
 
   const currentVideo = jobVideos?.videos[currentIndex];
   const totalVideos = jobVideos?.videos.length ?? 0;
@@ -126,6 +160,10 @@ export function JobVideoDialog({
       setSelectedSegments(new Set());
     }
   }, [open]);
+
+  useEffect(() => {
+    setPlaybackOffsetMs(currentVideo?.startOffsetMs ?? 0);
+  }, [currentVideo?.playUrl, currentVideo?.startOffsetMs]);
 
   // 切换选中状态
   const toggleSegment = (index: number) => {
@@ -214,6 +252,41 @@ export function JobVideoDialog({
       toast.error('合并失败，请重试');
     } finally {
       setIsMerging(false);
+    }
+  };
+
+  const handleDanmakuExport = async (
+    format: 'ass' | 'json' | 'jsonl' | 'xml'
+  ) => {
+    if (!jobVideos?.jobId) {
+      toast.error('任务信息缺失');
+      return;
+    }
+
+    setIsExportingDanmaku(format);
+    try {
+      const response = await api.exportText({
+        jobId: jobVideos.jobId,
+        type: 'danmaku',
+        format,
+      });
+
+      const fileResponse = await fetch(response.downloadUrl);
+      const blob = await fileResponse.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${sanitizeFilename(jobVideos.streamerName)}-${jobVideos.jobId}-danmaku.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`弹幕下载完成 (${format.toUpperCase()})`);
+    } catch {
+      toast.error('弹幕下载失败，请重试');
+    } finally {
+      setIsExportingDanmaku(null);
     }
   };
 
@@ -343,6 +416,35 @@ export function JobVideoDialog({
                   )}
                 </Button>
               </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-xs"
+                    disabled={!jobVideos || isExportingDanmaku !== null}
+                  >
+                    <MessageSquare className="h-3 w-3 mr-1" />
+                    {isExportingDanmaku
+                      ? `导出 ${isExportingDanmaku.toUpperCase()} 中...`
+                      : '下载弹幕'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start">
+                  <DropdownMenuItem onClick={() => handleDanmakuExport('jsonl')}>
+                    下载 JSONL
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDanmakuExport('json')}>
+                    下载 JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDanmakuExport('xml')}>
+                    下载 XML
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDanmakuExport('ass')}>
+                    下载 ASS
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -352,6 +454,11 @@ export function JobVideoDialog({
               video={currentVideo}
               autoPlay={autoPlay}
               onEnded={onVideoEnded}
+              onPlaybackTimeChange={(currentTimeMs) => {
+                setPlaybackOffsetMs(
+                  (currentVideo?.startOffsetMs || 0) + currentTimeMs
+                );
+              }}
             />
 
             {/* Controls */}
@@ -385,8 +492,23 @@ export function JobVideoDialog({
               </div>
             </div>
           </div>
+
+          <div
+            className="shrink-0"
+            style={{ width: DANMAKU_PANEL_WIDTH, height: VIDEO_HEIGHT + 48 }}
+          >
+            <DanmakuChatPanel
+              jobId={jobVideos?.jobId}
+              video={currentVideo}
+              playbackOffsetMs={playbackOffsetMs}
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function sanitizeFilename(name: string) {
+  return name.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'danmaku';
 }

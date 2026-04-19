@@ -34,8 +34,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Link2, Upload, X } from 'lucide-react';
-import type { Platform, StreamerFormValues } from '@/types';
-import { QUALITY_OPTIONS, BILIBILI_CATEGORIES } from '@/lib/constants';
+import type { BilibiliPartition, Platform, StreamerFormValues } from '@/types';
+import { api } from '@/lib/api';
+import { QUALITY_OPTIONS } from '@/lib/constants';
 import { toast } from 'sonner';
 
 // URL parsing patterns
@@ -127,8 +128,12 @@ const streamerSchema = z.object({
 interface StreamerFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate?: (data: StreamerFormValues) => void | Promise<void>;
-  onUpdate?: (data: StreamerFormValues) => void | Promise<void>;
+  onCreate?: (
+    data: StreamerFormValues
+  ) => void | boolean | Promise<void | boolean>;
+  onUpdate?: (
+    data: StreamerFormValues
+  ) => void | boolean | Promise<void | boolean>;
   isLoading?: boolean;
   initialValues?: Partial<StreamerFormValues>;
   mode?: 'create' | 'edit';
@@ -181,6 +186,8 @@ export function StreamerFormDialog({
   const [coverPreview, setCoverPreview] = useState<string | null>(
     initialValues?.coverUrl || null
   );
+  const [partitions, setPartitions] = useState<BilibiliPartition[]>([]);
+  const [loadingPartitions, setLoadingPartitions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -192,6 +199,32 @@ export function StreamerFormDialog({
     setCoverPreview(initialValues?.coverUrl || null);
     setTagInput('');
   }, [form, initialValues, open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    setLoadingPartitions(true);
+    api
+      .getBilibiliPartitions()
+      .then(data => {
+        setPartitions(data.partitions);
+      })
+      .catch(() => {
+        toast.error('加载投稿分区失败');
+      })
+      .finally(() => {
+        setLoadingPartitions(false);
+      });
+  }, [open]);
+
+  const flattenedPartitions = partitions.flatMap(partition =>
+    partition.children?.map(child => ({
+      id: child.id,
+      name: `${partition.name} - ${child.name}`,
+    })) || []
+  );
 
   const handleParseUrl = async () => {
     if (!urlInput.trim()) {
@@ -249,11 +282,17 @@ export function StreamerFormDialog({
   };
 
   const handleSubmit = async (values: z.infer<typeof streamerSchema>) => {
+    let shouldClose: void | boolean;
     if (mode === 'create') {
-      await onCreate?.(values as StreamerFormValues);
+      shouldClose = await onCreate?.(values as StreamerFormValues);
     } else {
-      await onUpdate?.(values as StreamerFormValues);
+      shouldClose = await onUpdate?.(values as StreamerFormValues);
     }
+
+    if (shouldClose === false) {
+      return;
+    }
+
     if (!isLoading) {
       form.reset();
       onOpenChange(false);
@@ -622,6 +661,7 @@ export function StreamerFormDialog({
                       <Select
                         onValueChange={(value) => field.onChange(Number(value))}
                         value={String(field.value || 171)}
+                        disabled={loadingPartitions}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -629,9 +669,12 @@ export function StreamerFormDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {BILIBILI_CATEGORIES.map((category) => (
-                            <SelectItem key={category.value} value={String(category.value)}>
-                              {category.label}
+                          {flattenedPartitions.map((partition) => (
+                            <SelectItem
+                              key={partition.id}
+                              value={String(partition.id)}
+                            >
+                              {partition.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

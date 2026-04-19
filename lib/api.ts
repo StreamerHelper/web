@@ -10,6 +10,8 @@ import type {
   SystemInfo,
   JobGroup,
   JobVideosResponse,
+  DanmakuQueryResponse,
+  ExportTextResponse,
   BilibiliAuthStatus,
   BilibiliQRCode,
   BilibiliPollResult,
@@ -124,6 +126,18 @@ export const api = {
     const response = await client.get<JobVideosResponse>(`/api/jobs/${id}/videos`);
     return response.data;
   },
+  getDanmaku: async (params: {
+    jobId: string;
+    startTime?: number;
+    endTime?: number;
+    limit?: number;
+    offset?: number;
+  }) => (await client.get<DanmakuQueryResponse>('/api/text/danmaku', { params })).data,
+  exportText: async (data: {
+    jobId: string;
+    type: 'danmaku' | 'transcript';
+    format: 'xml' | 'json' | 'jsonl' | 'ass' | 'txt' | 'srt' | 'vtt';
+  }) => (await client.post<ExportTextResponse>('/api/text/export', data)).data,
 
   // Generic methods
   post: async <T>(url: string, data?: unknown) => {

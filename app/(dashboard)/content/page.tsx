@@ -133,8 +133,9 @@ export default function ContentPage() {
 
   // Handle download
   const handleDownload = (job: BrowsedJob) => {
-    // TODO: Implement download functionality
-    console.log('Download job:', job.jobId);
+    setSelectedJobId(job.id);
+    setCurrentVideoIndex(0);
+    setShouldAutoPlay(false);
   };
 
   const hasFilters = streamerName !== 'all' || startDate || endDate || segmentFilterEnabled;

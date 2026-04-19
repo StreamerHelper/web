@@ -47,14 +47,23 @@ import {
   useJobs,
   useLiveStatus,
   useStartRecording,
+  useStopRecording,
   useStreamers,
   useUpdateStreamer,
 } from '@/hooks';
-import type { Platform, Streamer, StreamerFilterValues } from '@/types';
+import { api } from '@/lib';
+import type { Job, Platform, Streamer, StreamerFilterValues, StreamerFormValues } from '@/types';
 import { MoreVertical, Pencil, Plus, Radio, Search, Trash2, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { PLATFORM_ROOM_URLS } from '@/lib/constants';
+
+type PendingDeactivateRequest = {
+  streamer: Streamer;
+  data: Partial<StreamerFormValues>;
+  recordingJob: Job;
+  source: 'switch' | 'edit';
+};
 
 export default function StreamersPage() {
   const [filters, setFilters] = useState<StreamerFilterValues>({});
@@ -64,6 +73,10 @@ export default function StreamersPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editStreamer, setEditStreamer] = useState<Streamer | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [pendingDeactivate, setPendingDeactivate] =
+    useState<PendingDeactivateRequest | null>(null);
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [checkingDeactivate, setCheckingDeactivate] = useState(false);
 
   const { data: streamers, isLoading } = useStreamers(filters);
   const { data: jobsData } = useJobs();
@@ -71,6 +84,7 @@ export default function StreamersPage() {
   const deleteMutation = useDeleteStreamer();
   const updateMutation = useUpdateStreamer();
   const startRecordingMutation = useStartRecording();
+  const stopRecordingMutation = useStopRecording();
 
   // Live status hook
   const { getLiveStatus, getStreamTitle, checkSingle, isChecking } = useLiveStatus(streamers || [], {
@@ -112,16 +126,136 @@ export default function StreamersPage() {
     }
   };
 
-  const handleToggleActive = async (streamer: Streamer) => {
-    await updateMutation.mutateAsync({
-      id: streamer.id,
-      data: { ...streamer, isActive: !streamer.isActive },
+  const handleEditDialogOpenChange = (open: boolean) => {
+    setEditDialogOpen(open);
+    if (!open) {
+      setEditStreamer(null);
+    }
+  };
+
+  const closeDeactivateDialog = () => {
+    setDeactivateDialogOpen(false);
+    setPendingDeactivate(null);
+  };
+
+  const buildStreamerUpdatePayload = (
+    streamer: Streamer
+  ): StreamerFormValues => ({
+    streamerId: streamer.streamerId,
+    name: streamer.name,
+    platform: streamer.platform,
+    roomId: streamer.roomId,
+    isActive: streamer.isActive ?? true,
+    coverPath: streamer.coverPath ?? null,
+    coverUrl: streamer.coverUrl ?? null,
+    recordSettings: {
+      quality: streamer.recordSettings?.quality,
+      detectHighlights: streamer.recordSettings?.detectHighlights ?? false,
+    },
+    uploadSettings: {
+      autoUpload: streamer.uploadSettings?.autoUpload ?? true,
+      title: streamer.uploadSettings?.title || '',
+      description: streamer.uploadSettings?.description || '',
+      tags: streamer.uploadSettings?.tags || [],
+      tid: streamer.uploadSettings?.tid,
+    },
+  });
+
+  const findActiveRecordingJob = async (streamer: Streamer): Promise<Job | null> => {
+    const jobs = await api.getJobs({
+      streamerId: streamer.streamerId,
+      status: 'recording',
+      pageSize: 10,
     });
+
+    return (
+      jobs.data.find(
+        job => job.status === 'recording' && job.platform === streamer.platform
+      ) || null
+    );
+  };
+
+  const requestDeactivateConfirmation = async (
+    streamer: Streamer,
+    data: Partial<StreamerFormValues>,
+    source: PendingDeactivateRequest['source']
+  ): Promise<boolean> => {
+    setCheckingDeactivate(true);
+
+    try {
+      const recordingJob = await findActiveRecordingJob(streamer);
+
+      if (!recordingJob) {
+        await updateMutation.mutateAsync({
+          id: streamer.id,
+          data,
+        });
+        return true;
+      }
+
+      setPendingDeactivate({
+        streamer,
+        data,
+        recordingJob,
+        source,
+      });
+      setDeactivateDialogOpen(true);
+      return false;
+    } finally {
+      setCheckingDeactivate(false);
+    }
+  };
+
+  const handleToggleActive = async (streamer: Streamer) => {
+    if (!streamer.isActive) {
+      await updateMutation.mutateAsync({
+        id: streamer.id,
+        data: {
+          ...buildStreamerUpdatePayload(streamer),
+          isActive: true,
+        },
+      });
+      return;
+    }
+
+    await requestDeactivateConfirmation(
+      streamer,
+      {
+        ...buildStreamerUpdatePayload(streamer),
+        isActive: false,
+      },
+      'switch'
+    );
   };
 
   const handleEdit = (streamer: Streamer) => {
     setEditStreamer(streamer);
     setEditDialogOpen(true);
+  };
+
+  const handleDeactivateChoice = async (shouldStopRecording: boolean) => {
+    if (!pendingDeactivate) {
+      return;
+    }
+
+    try {
+      if (shouldStopRecording) {
+        await stopRecordingMutation.mutateAsync(pendingDeactivate.recordingJob.id);
+      }
+
+      await updateMutation.mutateAsync({
+        id: pendingDeactivate.streamer.id,
+        data: pendingDeactivate.data,
+      });
+
+      if (pendingDeactivate.source === 'edit') {
+        handleEditDialogOpenChange(false);
+      }
+
+      closeDeactivateDialog();
+    } catch {
+      // mutations already surface errors via global toast
+    }
   };
 
   if (isLoading) {
@@ -257,7 +391,11 @@ export default function StreamersPage() {
                     <TableCell>
                       <Switch
                         checked={streamer.isActive ?? false}
-                        disabled={updateMutation.isPending}
+                        disabled={
+                          updateMutation.isPending ||
+                          stopRecordingMutation.isPending ||
+                          checkingDeactivate
+                        }
                         onCheckedChange={() => handleToggleActive(streamer)}
                       />
                     </TableCell>
@@ -332,7 +470,7 @@ export default function StreamersPage() {
         onOpenChange={setAddDialogOpen}
         onCreate={async (data) => {
           await createMutation.mutateAsync(data);
-          setAddDialogOpen(false);
+          return true;
         }}
         isLoading={createMutation.isPending}
         mode="create"
@@ -342,20 +480,67 @@ export default function StreamersPage() {
       {editStreamer && (
         <StreamerFormDialog
           open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
+          onOpenChange={handleEditDialogOpenChange}
           onUpdate={async (data) => {
+            if ((editStreamer.isActive ?? true) && data.isActive === false) {
+              return await requestDeactivateConfirmation(editStreamer, data, 'edit');
+            }
+
             await updateMutation.mutateAsync({
               id: editStreamer.id,
               data,
             });
-            setEditDialogOpen(false);
-            setEditStreamer(null);
+            return true;
           }}
-          isLoading={updateMutation.isPending}
+          isLoading={
+            updateMutation.isPending ||
+            stopRecordingMutation.isPending ||
+            checkingDeactivate
+          }
           initialValues={editStreamer}
           mode="edit"
         />
       )}
+
+      <AlertDialog
+        open={deactivateDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDeactivateDialog();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>当前有正在录制的任务</AlertDialogTitle>
+            <AlertDialogDescription>
+              主播「{pendingDeactivate?.streamer.name}」当前仍在录制中。你可以直接停用监控，
+              让本次录制继续；也可以先停止当前录制，再停用该主播。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={updateMutation.isPending || stopRecordingMutation.isPending}
+              onClick={closeDeactivateDialog}
+            >
+              取消
+            </AlertDialogCancel>
+            <Button
+              variant="outline"
+              disabled={updateMutation.isPending || stopRecordingMutation.isPending}
+              onClick={() => void handleDeactivateChoice(false)}
+            >
+              继续停用
+            </Button>
+            <Button
+              disabled={updateMutation.isPending || stopRecordingMutation.isPending}
+              onClick={() => void handleDeactivateChoice(true)}
+            >
+              停止录制并停用
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

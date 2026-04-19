@@ -31,6 +31,9 @@ export interface VideoSegment {
   filename: string;
   s3Key: string;
   playUrl: string;
+  startOffsetMs: number;
+  endOffsetMs: number;
+  durationMs: number;
 }
 
 // Job videos response
@@ -120,6 +123,56 @@ export interface Highlight {
   end: number;
   score: number;
   reason?: string;
+}
+
+export type DanmakuType =
+  | 'chat'
+  | 'gift'
+  | 'sc'
+  | 'enter'
+  | 'follow'
+  | 'share'
+  | 'like'
+  | 'interact'
+  | 'notice'
+  | 'unknown';
+
+export type DanmakuPosition = 0 | 1 | 2 | 3 | 4;
+
+export interface DanmakuMessage {
+  id: string;
+  timestamp: number;
+  type: DanmakuType;
+  userId: string;
+  username: string;
+  content?: string;
+  position?: DanmakuPosition;
+  color?: number;
+  contentColor?: number;
+  fontSize?: number;
+  gift?: {
+    giftId: string;
+    giftName: string;
+    count: number;
+    price: number;
+    totalPrice: number;
+  };
+  superChat?: {
+    price: number;
+    backgroundColor: string;
+    borderColor: string;
+  };
+}
+
+export interface DanmakuQueryResponse {
+  messages: DanmakuMessage[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface ExportTextResponse {
+  downloadUrl: string;
+  expiresAt: number;
 }
 
 export interface SystemHealth {
