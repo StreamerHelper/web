@@ -27,6 +27,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultTheme="system"
         enableSystem
         disableTransitionOnChange
+        storageKey="streamerhelper-theme"
       >
         {children}
         <Toaster richColors position="top-right" />
