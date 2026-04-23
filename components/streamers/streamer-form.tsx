@@ -237,12 +237,24 @@ export function StreamerFormDialog({
 
     if (parsed) {
       // Auto-fill the form
-      form.setValue('platform', parsed.platform);
-      form.setValue('roomId', parsed.roomId);
+      form.setValue('platform', parsed.platform, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      form.setValue('roomId', parsed.roomId, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       if (parsed.streamerId) {
-        form.setValue('streamerId', parsed.streamerId);
+        form.setValue('streamerId', parsed.streamerId, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       } else {
-        form.setValue('streamerId', parsed.roomId);
+        form.setValue('streamerId', parsed.roomId, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
       toast.success('解析成功', {
         description: `已识别为 ${parsed.platform} 平台，房间号: ${parsed.roomId}`,
@@ -416,7 +428,7 @@ export function StreamerFormDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>平台</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="选择平台" />
@@ -531,7 +543,7 @@ export function StreamerFormDialog({
                   render={({ field }) => (
                       <FormItem>
                         <FormLabel>录制质量</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="选择录制质量" />

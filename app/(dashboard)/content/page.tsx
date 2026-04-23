@@ -45,7 +45,7 @@ export default function ContentPage() {
 
   // Segment count filter
   const [segmentFilterEnabled, setSegmentFilterEnabled] = useState(true);
-  const [minSegmentCount, setMinSegmentCount] = useState(5);
+  const [minSegmentCount, setMinSegmentCount] = useState(3);
 
   // Temporary date selection state (for popover, not triggered until confirmed)
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -116,7 +116,7 @@ export default function ContentPage() {
     setStartDate(undefined);
     setEndDate(undefined);
     setSegmentFilterEnabled(false);
-    setMinSegmentCount(5);
+    setMinSegmentCount(3);
   };
 
   // Handle submit success
@@ -240,7 +240,7 @@ export default function ContentPage() {
             htmlFor="segment-filter"
             className="text-sm font-medium cursor-pointer"
           >
-            片段数 &gt;
+            片段数 ≥
           </label>
           <Input
             type="number"

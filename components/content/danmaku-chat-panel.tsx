@@ -1,12 +1,10 @@
 'use client';
 
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { api } from '@/lib';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { DanmakuMessage, VideoSegment } from '@/types';
-import { Gift, MessageSquare, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface DanmakuChatPanelProps {
   jobId?: string | null;
@@ -14,63 +12,98 @@ interface DanmakuChatPanelProps {
   playbackOffsetMs: number;
 }
 
+const PAGE_SIZE = 200;
+const LOAD_MORE_THRESHOLD_PX = 240;
+const PREFETCH_REMAINING_MESSAGES = 40;
+
 export function DanmakuChatPanel({
   jobId,
   video,
   playbackOffsetMs,
 }: DanmakuChatPanelProps) {
   const [messages, setMessages] = useState<DanmakuMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const requestRef = useRef(0);
 
-  useEffect(() => {
-    let disposed = false;
+  const loadPage = useCallback(
+    async (offset: number, mode: 'reset' | 'append') => {
+      if (!jobId || !video) {
+        return;
+      }
 
-    if (!jobId || !video) {
-      setMessages([]);
-      setIsLoading(false);
-      setActiveIndex(-1);
-      return;
-    }
+      const requestId = requestRef.current + 1;
+      requestRef.current = requestId;
 
-    setIsLoading(true);
-    setActiveIndex(-1);
+      if (mode === 'reset') {
+        setIsLoadingInitial(true);
+      } else {
+        setIsLoadingMore(true);
+      }
 
-    api
-      .getDanmaku({
-        jobId,
-        startTime: video.startOffsetMs,
-        endTime: video.endOffsetMs,
-        limit: 5000,
-        offset: 0,
-      })
-      .then(response => {
-        if (disposed) {
+      try {
+        const response = await api.getDanmaku({
+          jobId,
+          startTime: video.startOffsetMs,
+          endTime: video.endOffsetMs,
+          limit: PAGE_SIZE,
+          offset,
+        });
+
+        if (requestRef.current !== requestId) {
           return;
         }
 
-        setMessages(
-          response.messages
-            .filter(message => shouldRenderMessage(message))
-            .sort((left, right) => left.timestamp - right.timestamp)
+        const nextMessages = response.messages
+          .filter(message => shouldRenderMessage(message))
+          .sort((left, right) => left.timestamp - right.timestamp);
+
+        setMessages(previous =>
+          mode === 'reset' ? nextMessages : [...previous, ...nextMessages]
         );
-      })
-      .catch(() => {
-        if (!disposed) {
+        setHasMore(response.hasMore);
+        setTotal(response.total);
+      } catch {
+        if (requestRef.current !== requestId) {
+          return;
+        }
+
+        if (mode === 'reset') {
           setMessages([]);
         }
-      })
-      .finally(() => {
-        if (!disposed) {
-          setIsLoading(false);
+        setHasMore(false);
+        setTotal(0);
+      } finally {
+        if (requestRef.current === requestId) {
+          setIsLoadingInitial(false);
+          setIsLoadingMore(false);
         }
-      });
+      }
+    },
+    [jobId, video]
+  );
 
-    return () => {
-      disposed = true;
-    };
-  }, [jobId, video?.playUrl, video?.startOffsetMs, video?.endOffsetMs]);
+  useEffect(() => {
+    requestRef.current += 1;
+    setMessages([]);
+    setActiveIndex(-1);
+    setHasMore(false);
+    setTotal(0);
+    setIsLoadingMore(false);
+
+    if (!jobId || !video) {
+      setIsLoadingInitial(false);
+      return;
+    }
+
+    void loadPage(0, 'reset');
+  }, [jobId, loadPage, video?.playUrl, video?.startOffsetMs, video?.endOffsetMs]);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -84,7 +117,22 @@ export function DanmakuChatPanel({
     if (nextIndex !== activeIndex) {
       setActiveIndex(nextIndex);
     }
-  }, [messages, playbackOffsetMs, activeIndex]);
+  }, [activeIndex, messages, playbackOffsetMs]);
+
+  useEffect(() => {
+    if (!hasMore || isLoadingMore || messages.length === 0) {
+      return;
+    }
+
+    const lastLoadedMessage = messages[messages.length - 1];
+    const shouldPrefetchByPlayback =
+      lastLoadedMessage.timestamp <= playbackOffsetMs ||
+      messages.length - activeIndex <= PREFETCH_REMAINING_MESSAGES;
+
+    if (shouldPrefetchByPlayback) {
+      void loadPage(messages.length, 'append');
+    }
+  }, [activeIndex, hasMore, isLoadingMore, loadPage, messages, playbackOffsetMs]);
 
   useEffect(() => {
     if (activeIndex < 0) {
@@ -98,10 +146,24 @@ export function DanmakuChatPanel({
 
     const currentKey = getMessageKey(currentMessage, activeIndex);
     itemRefs.current[currentKey]?.scrollIntoView({
-      block: 'center',
+      block: 'nearest',
       behavior: 'auto',
     });
   }, [activeIndex, messages]);
+
+  const handleScroll = useCallback(() => {
+    const node = scrollerRef.current;
+    if (!node || !hasMore || isLoadingMore) {
+      return;
+    }
+
+    const remainingDistance =
+      node.scrollHeight - node.scrollTop - node.clientHeight;
+
+    if (remainingDistance <= LOAD_MORE_THRESHOLD_PX) {
+      void loadPage(messages.length, 'append');
+    }
+  }, [hasMore, isLoadingMore, loadPage, messages.length]);
 
   const stats = useMemo(() => {
     let chatCount = 0;
@@ -125,29 +187,33 @@ export function DanmakuChatPanel({
     <div className="flex h-full min-w-[280px] max-w-[320px] flex-col border-l bg-background">
       <div className="border-b px-3 py-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-medium">弹幕</div>
+          <div className="text-sm font-medium">聊天回放</div>
           <div className="text-[11px] text-muted-foreground">
-            {isLoading ? '加载中' : `${messages.length} 条`}
+            {isLoadingInitial ? '加载中' : `${messages.length}/${total || messages.length}`}
           </div>
         </div>
-        <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span>{stats.chatCount} 普通</span>
           <span>{stats.giftCount} 礼物</span>
           <span>{stats.scCount} SC</span>
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="space-y-1 px-2 py-2">
-          {!isLoading && messages.length === 0 && (
-            <div className="py-4 text-center text-xs text-muted-foreground">
+      <div
+        ref={scrollerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto"
+      >
+        <div className="divide-y divide-border/45">
+          {!isLoadingInitial && messages.length === 0 && (
+            <div className="py-5 text-center text-xs text-muted-foreground">
               当前片段没有弹幕
             </div>
           )}
 
           {messages.map((message, index) => {
             const messageKey = getMessageKey(message, index);
-            const variant = getDanmakuVariant(message);
+            const meta = getMessageMeta(message);
             const isPast = index <= activeIndex;
             const isCurrent = index === activeIndex;
             const body = getMessageBody(message);
@@ -159,50 +225,75 @@ export function DanmakuChatPanel({
                   itemRefs.current[messageKey] = node;
                 }}
                 className={cn(
-                  'rounded-md border px-2 py-1.5 text-[12px] leading-[1.35] transition-colors',
-                  variant.container,
-                  isPast ? 'opacity-100' : 'opacity-55',
-                  isCurrent && 'ring-1 ring-primary/45 shadow-sm'
+                  'border-l-2 border-transparent px-2 py-1.5 text-[11px] leading-4 transition-colors',
+                  isPast ? 'opacity-100' : 'opacity-45',
+                  isCurrent && 'border-l-primary bg-primary/6'
                 )}
               >
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <span className="tabular-nums text-[10px]">
+                <div className="flex items-start gap-2">
+                  <span className="mt-px w-10 shrink-0 tabular-nums text-[10px] text-muted-foreground">
                     {formatDuration(message.timestamp)}
                   </span>
-                  <span className={cn('inline-flex items-center gap-1', variant.badgeClass)}>
-                    {variant.icon}
-                    {variant.label}
-                  </span>
-                  {message.type === 'sc' && message.superChat?.price ? (
-                    <span className="rounded bg-amber-500/12 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                      ¥{message.superChat.price}
+                  <div className="min-w-0 flex-1 break-words">
+                    <span
+                      className={cn(
+                        'mr-1 inline-flex align-middle text-[9px] font-medium',
+                        meta.badgeClass
+                      )}
+                    >
+                      {meta.label}
                     </span>
-                  ) : null}
-                </div>
-                <div className="mt-0.5 break-words">
-                  {message.type !== 'notice' && message.type !== 'enter' ? (
-                    <span className="font-medium text-foreground/90">
-                      {message.username}
+                    {meta.showUsername ? (
+                      <>
+                        <span
+                          className={cn(
+                            'align-middle font-medium',
+                            meta.usernameClass
+                          )}
+                        >
+                          {message.username}
+                        </span>
+                        <span className="align-middle text-muted-foreground">
+                          :{' '}
+                        </span>
+                      </>
+                    ) : null}
+                    {message.type === 'sc' && message.superChat?.price ? (
+                      <span className="mr-1 inline-flex rounded-sm bg-amber-500/12 px-1 text-[9px] font-medium text-amber-700 align-middle dark:text-amber-300">
+                        ¥{message.superChat.price}
+                      </span>
+                    ) : null}
+                    <span
+                      className={cn(
+                        'align-middle text-foreground/92',
+                        meta.bodyClass
+                      )}
+                    >
+                      {body}
                     </span>
-                  ) : null}
-                  {message.type !== 'notice' && message.type !== 'enter' ? (
-                    <span className="text-muted-foreground">: </span>
-                  ) : null}
-                  <span className={cn('text-foreground', variant.bodyClass)}>
-                    {body}
-                  </span>
+                  </div>
                 </div>
               </div>
             );
           })}
+
+          {(isLoadingInitial || isLoadingMore) && (
+            <div className="px-2 py-2 text-center text-[10px] text-muted-foreground">
+              正在加载更多弹幕...
+            </div>
+          )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
 
 function shouldRenderMessage(message: DanmakuMessage) {
-  if (message.type === 'chat' || message.type === 'gift' || message.type === 'sc') {
+  if (
+    message.type === 'chat' ||
+    message.type === 'gift' ||
+    message.type === 'sc'
+  ) {
     return true;
   }
 
@@ -243,25 +334,24 @@ function getMessageBody(message: DanmakuMessage) {
   return message.content || '';
 }
 
-function getDanmakuVariant(message: DanmakuMessage) {
+function getMessageMeta(message: DanmakuMessage) {
   if (message.type === 'sc') {
     return {
       label: 'SC',
-      icon: <Sparkles className="h-3 w-3" />,
-      container:
-        'border-amber-500/35 bg-gradient-to-r from-amber-500/10 to-orange-500/8',
       badgeClass: 'text-amber-700 dark:text-amber-300',
+      usernameClass: 'text-foreground',
       bodyClass: 'font-medium',
+      showUsername: true,
     };
   }
 
   if (message.type === 'gift') {
     return {
       label: '礼物',
-      icon: <Gift className="h-3 w-3" />,
-      container: 'border-emerald-500/30 bg-emerald-500/6',
       badgeClass: 'text-emerald-700 dark:text-emerald-300',
+      usernameClass: 'text-foreground',
       bodyClass: '',
+      showUsername: true,
     };
   }
 
@@ -274,19 +364,19 @@ function getDanmakuVariant(message: DanmakuMessage) {
   ) {
     return {
       label: '事件',
-      icon: <MessageSquare className="h-3 w-3" />,
-      container: 'border-border/60 bg-muted/40',
       badgeClass: 'text-muted-foreground',
+      usernameClass: 'text-foreground',
       bodyClass: 'text-muted-foreground',
+      showUsername: false,
     };
   }
 
   return {
     label: '弹幕',
-    icon: <MessageSquare className="h-3 w-3" />,
-    container: 'border-border/65 bg-card',
     badgeClass: 'text-sky-700 dark:text-sky-300',
+    usernameClass: 'text-foreground',
     bodyClass: '',
+    showUsername: true,
   };
 }
 
