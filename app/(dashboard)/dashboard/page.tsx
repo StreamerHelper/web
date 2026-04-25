@@ -228,18 +228,18 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="rounded-lg border bg-card">
+          <>
             <Table>
               <TableHeader>
-                <TableRow className="h-12">
-                  <TableHead className="py-2 px-3">直播间号</TableHead>
-                  <TableHead className="py-2 px-3">主播</TableHead>
-                  <TableHead className="py-2 px-3">平台</TableHead>
-                  <TableHead className="py-2 px-3">状态</TableHead>
-                  <TableHead className="py-2 px-3">进度</TableHead>
-                  <TableHead className="py-2 px-3">开始时间</TableHead>
-                  <TableHead className="py-2 px-3">时长</TableHead>
-                  <TableHead className="text-right py-2 px-3">操作</TableHead>
+                <TableRow>
+                  <TableHead>直播间号</TableHead>
+                  <TableHead>主播</TableHead>
+                  <TableHead>平台</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>进度</TableHead>
+                  <TableHead>开始时间</TableHead>
+                  <TableHead>时长</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -252,7 +252,7 @@ export default function DashboardPage() {
                 ))}
               </TableBody>
             </Table>
-          </Card>
+          </>
         )}
       </div>
 

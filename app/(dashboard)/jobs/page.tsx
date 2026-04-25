@@ -121,40 +121,38 @@ export default function JobsPage() {
           description="还没有任何录制任务"
         />
       ) : (
-        <div className="rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="h-12">
-                <TableHead className="py-2 px-3">直播间号</TableHead>
-                <TableHead className="py-2 px-3">主播</TableHead>
-                <TableHead className="py-2 px-3">平台</TableHead>
-                <TableHead className="py-2 px-3">状态</TableHead>
-                <TableHead className="py-2 px-3">进度</TableHead>
-                <TableHead className="py-2 px-3">开始时间</TableHead>
-                <TableHead className="py-2 px-3">时长</TableHead>
-                <TableHead className="text-right py-2 px-3">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {jobs.map((job) => (
-                <JobTableRow
-                  key={job.id}
-                  job={job}
-                  onClick={setSelectedJob}
-                  onStop={(job) => {
-                    setJobToAction(job);
-                    setStopDialogOpen(true);
-                  }}
-                  onRetry={handleRetry}
-                  onDelete={(job) => {
-                    setJobToAction(job);
-                    setDeleteDialogOpen(true);
-                  }}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>直播间号</TableHead>
+              <TableHead>主播</TableHead>
+              <TableHead>平台</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>进度</TableHead>
+              <TableHead>开始时间</TableHead>
+              <TableHead>时长</TableHead>
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {jobs.map((job) => (
+              <JobTableRow
+                key={job.id}
+                job={job}
+                onClick={setSelectedJob}
+                onStop={(job) => {
+                  setJobToAction(job);
+                  setStopDialogOpen(true);
+                }}
+                onRetry={handleRetry}
+                onDelete={(job) => {
+                  setJobToAction(job);
+                  setDeleteDialogOpen(true);
+                }}
+              />
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {/* Job Detail Dialog */}

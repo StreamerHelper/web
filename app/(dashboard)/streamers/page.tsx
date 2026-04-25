@@ -154,10 +154,16 @@ export default function StreamersPage() {
     },
     uploadSettings: {
       autoUpload: streamer.uploadSettings?.autoUpload ?? true,
+      rhythm: {
+        mode: streamer.uploadSettings?.rhythm?.mode || 'complete',
+        intervalMinutes:
+          streamer.uploadSettings?.rhythm?.intervalMinutes ?? 30,
+      },
       title: streamer.uploadSettings?.title || '',
       description: streamer.uploadSettings?.description || '',
       tags: streamer.uploadSettings?.tags || [],
-      tid: streamer.uploadSettings?.tid,
+      humanType2: streamer.uploadSettings?.humanType2,
+      collection: streamer.uploadSettings?.collection,
     },
   });
 
@@ -314,6 +320,7 @@ export default function StreamersPage() {
             <SelectItem value="bilibili">Bilibili</SelectItem>
             <SelectItem value="huya">虎牙</SelectItem>
             <SelectItem value="douyu">斗鱼</SelectItem>
+            <SelectItem value="douyin">抖音</SelectItem>
           </SelectContent>
         </Select>
         <Select
@@ -349,20 +356,19 @@ export default function StreamersPage() {
           }
         />
       ) : (
-        <div className="rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>主播</TableHead>
-                <TableHead>平台</TableHead>
-                <TableHead>房间号</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>录制清晰度</TableHead>
-                <TableHead>直播状态</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>主播</TableHead>
+              <TableHead>平台</TableHead>
+              <TableHead>房间号</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>录制清晰度</TableHead>
+              <TableHead>直播状态</TableHead>
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
               {filteredStreamers.map((streamer) => {
                 const isRecording = recordingStreamers.includes(streamer.streamerId);
                 const isLive = getLiveStatus(streamer.streamerId);
@@ -459,9 +465,8 @@ export default function StreamersPage() {
                   </TableRow>
                 );
               })}
-            </TableBody>
-          </Table>
-        </div>
+          </TableBody>
+        </Table>
       )}
 
       {/* Add Dialog */}

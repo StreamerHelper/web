@@ -33,11 +33,21 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Link2, Upload, X } from 'lucide-react';
-import type { BilibiliPartition, Platform, StreamerFormValues } from '@/types';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Link2, Plus, RefreshCw, Upload, X } from 'lucide-react';
+import type {
+  BilibiliPartition,
+  BilibiliSeason,
+  Platform,
+  StreamerFormValues,
+} from '@/types';
 import { api } from '@/lib/api';
 import { QUALITY_OPTIONS } from '@/lib/constants';
 import { toast } from 'sonner';
+import {
+  DEFAULT_BILIBILI_HUMAN_TYPE2,
+  PartitionMenu,
+} from '@/components/bilibili/partition-menu';
 
 // URL parsing patterns
 const URL_PATTERNS = {
@@ -51,7 +61,13 @@ const URL_PATTERNS = {
   douyu: [
     /douyu\.com\/(\d+)/,
   ],
+  douyin: [
+    /live\.douyin\.com\/([^/?#]+)/,
+    /douyin\.com\/root\/live\/([^/?#]+)/,
+  ],
 } as const;
+
+const COLLECTION_NONE_VALUE = 'none';
 
 interface ParsedUrl {
   platform: Platform;
@@ -92,6 +108,17 @@ function parseStreamerUrl(url: string): ParsedUrl | null {
       if (match) {
         return { platform: 'douyu', roomId: match[1] };
       }
+    } else if (hostname.includes('douyin')) {
+      const rootLiveMatch = urlObj.pathname.match(/^\/root\/live\/([^/?#]+)/);
+      if (rootLiveMatch) {
+        return { platform: 'douyin', roomId: rootLiveMatch[1] };
+      }
+      if (hostname === 'live.douyin.com') {
+        const liveMatch = urlObj.pathname.match(/^\/([^/?#]+)/);
+        if (liveMatch) {
+          return { platform: 'douyin', roomId: liveMatch[1] };
+        }
+      }
     }
 
     return null;
@@ -100,30 +127,65 @@ function parseStreamerUrl(url: string): ParsedUrl | null {
   }
 }
 
-const streamerSchema = z.object({
-  platform: z.enum(['bilibili', 'huya', 'douyu'], {
-    message: '请选择平台',
-  }),
-  streamerId: z.string().min(1, '请输入主播 ID'),
-  roomId: z.string().min(1, '请输入房间号'),
-  name: z.string().min(1, '请输入主播名称'),
-  isActive: z.boolean(),
-  coverPath: z.string().nullable().optional(),
-  coverUrl: z.string().nullable().optional(),
-  coverDataUrl: z.string().optional(),
-  removeCover: z.boolean().optional(),
-  recordSettings: z.object({
-    quality: z.string().optional(),
-    detectHighlights: z.boolean(),
-  }),
-  uploadSettings: z.object({
-    autoUpload: z.boolean(),
-    title: z.string().max(80, '标题模板最多80个字符').optional(),
-    description: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    tid: z.number().optional(),
-  }).optional(),
-});
+const streamerSchema = z
+  .object({
+    platform: z.enum(['bilibili', 'huya', 'douyu', 'douyin'], {
+      message: '请选择平台',
+    }),
+    streamerId: z.string().min(1, '请输入主播 ID'),
+    roomId: z.string().min(1, '请输入房间号'),
+    name: z.string().min(1, '请输入主播名称'),
+    isActive: z.boolean(),
+    coverPath: z.string().nullable().optional(),
+    coverUrl: z.string().nullable().optional(),
+    coverDataUrl: z.string().optional(),
+    removeCover: z.boolean().optional(),
+    recordSettings: z.object({
+      quality: z.string().optional(),
+      detectHighlights: z.boolean(),
+    }),
+    uploadSettings: z
+      .object({
+        autoUpload: z.boolean(),
+        rhythm: z
+          .object({
+            mode: z.enum(['complete', 'segmented']),
+            intervalMinutes: z
+              .number()
+              .int('投稿间隔必须是整数')
+              .min(1, '投稿间隔至少 1 分钟')
+              .max(720, '投稿间隔最多 720 分钟'),
+          })
+          .optional(),
+        title: z.string().max(80, '标题模板最多80个字符').optional(),
+        description: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        humanType2: z.number().optional(),
+        collection: z
+          .object({
+            autoAdd: z.boolean(),
+            seasonId: z.number().nullable().optional(),
+            sectionId: z.number().nullable().optional(),
+            seasonTitle: z.string().nullable().optional(),
+            sectionTitle: z.string().nullable().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    const collection = data.uploadSettings?.collection;
+    if (
+      collection?.autoAdd &&
+      (!collection.seasonId || !collection.sectionId)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '请选择投稿合集',
+        path: ['uploadSettings', 'collection', 'sectionId'],
+      });
+    }
+  });
 
 interface StreamerFormDialogProps {
   open: boolean;
@@ -166,10 +228,23 @@ export function StreamerFormDialog({
     },
     uploadSettings: {
       autoUpload: values?.uploadSettings?.autoUpload ?? true,
+      rhythm: {
+        mode: values?.uploadSettings?.rhythm?.mode || 'complete',
+        intervalMinutes:
+          values?.uploadSettings?.rhythm?.intervalMinutes ?? 30,
+      },
       title: values?.uploadSettings?.title || '',
       description: values?.uploadSettings?.description || '',
       tags: values?.uploadSettings?.tags || [],
-      tid: values?.uploadSettings?.tid || 171,
+      humanType2:
+        values?.uploadSettings?.humanType2 || DEFAULT_BILIBILI_HUMAN_TYPE2,
+      collection: {
+        autoAdd: values?.uploadSettings?.collection?.autoAdd ?? false,
+        seasonId: values?.uploadSettings?.collection?.seasonId ?? null,
+        sectionId: values?.uploadSettings?.collection?.sectionId ?? null,
+        seasonTitle: values?.uploadSettings?.collection?.seasonTitle ?? null,
+        sectionTitle: values?.uploadSettings?.collection?.sectionTitle ?? null,
+      },
     },
   });
 
@@ -188,6 +263,12 @@ export function StreamerFormDialog({
   );
   const [partitions, setPartitions] = useState<BilibiliPartition[]>([]);
   const [loadingPartitions, setLoadingPartitions] = useState(false);
+  const [seasons, setSeasons] = useState<BilibiliSeason[]>([]);
+  const [loadingSeasons, setLoadingSeasons] = useState(false);
+  const [showCollectionCreator, setShowCollectionCreator] = useState(false);
+  const [newCollectionTitle, setNewCollectionTitle] = useState('');
+  const [newCollectionDesc, setNewCollectionDesc] = useState('');
+  const [creatingSeason, setCreatingSeason] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -198,16 +279,17 @@ export function StreamerFormDialog({
     form.reset(buildDefaultValues(initialValues));
     setCoverPreview(initialValues?.coverUrl || null);
     setTagInput('');
+    setShowCollectionCreator(false);
+    setNewCollectionTitle(
+      initialValues?.name ? `${initialValues.name}直播录像` : ''
+    );
+    setNewCollectionDesc('');
   }, [form, initialValues, open]);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
+  const loadPartitions = (options?: { refresh?: boolean }) => {
     setLoadingPartitions(true);
     api
-      .getBilibiliPartitions()
+      .getBilibiliPartitions({ refresh: options?.refresh })
       .then(data => {
         setPartitions(data.partitions);
       })
@@ -217,14 +299,208 @@ export function StreamerFormDialog({
       .finally(() => {
         setLoadingPartitions(false);
       });
+  };
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    loadPartitions();
   }, [open]);
 
-  const flattenedPartitions = partitions.flatMap(partition =>
-    partition.children?.map(child => ({
-      id: child.id,
-      name: `${partition.name} - ${child.name}`,
-    })) || []
+  const loadSeasons = (options?: { refresh?: boolean }) => {
+    setLoadingSeasons(true);
+    api
+      .getBilibiliSeasons({ refresh: options?.refresh })
+      .then(data => {
+        setSeasons(data.seasons);
+      })
+      .catch(() => {
+        setSeasons([]);
+        if (form.getValues('uploadSettings.collection.autoAdd')) {
+          toast.error('加载投稿合集失败');
+        }
+      })
+      .finally(() => {
+        setLoadingSeasons(false);
+      });
+  };
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    loadSeasons();
+  }, [open]);
+
+  const flattenedCollectionOptions = seasons.flatMap(season =>
+    season.sections.map(section => ({
+      value: `${season.id}:${section.id}`,
+      seasonId: season.id,
+      seasonTitle: season.title,
+      sectionId: section.id,
+      sectionTitle: section.title,
+      label:
+        section.title && section.title !== '正片'
+          ? `${season.title} / ${section.title}`
+          : season.title,
+    }))
   );
+  const selectedCollection = form.watch('uploadSettings.collection');
+  const collectionAutoAdd = Boolean(selectedCollection?.autoAdd);
+  const rhythmMode = form.watch('uploadSettings.rhythm.mode') || 'complete';
+  const selectedCollectionValue =
+    selectedCollection?.seasonId && selectedCollection?.sectionId
+      ? `${selectedCollection.seasonId}:${selectedCollection.sectionId}`
+      : COLLECTION_NONE_VALUE;
+  const collectionOptions =
+    selectedCollectionValue !== COLLECTION_NONE_VALUE &&
+    !flattenedCollectionOptions.some(
+      option => option.value === selectedCollectionValue
+    )
+      ? [
+          {
+            value: selectedCollectionValue,
+            seasonId: Number(selectedCollection?.seasonId),
+            seasonTitle:
+              selectedCollection?.seasonTitle ||
+              `合集 ${selectedCollection?.seasonId}`,
+            sectionId: Number(selectedCollection?.sectionId),
+            sectionTitle: selectedCollection?.sectionTitle || '正片',
+            label:
+              selectedCollection?.seasonTitle &&
+              selectedCollection?.sectionTitle &&
+              selectedCollection.sectionTitle !== '正片'
+                ? `${selectedCollection.seasonTitle} / ${selectedCollection.sectionTitle}`
+                : selectedCollection?.seasonTitle ||
+                  `合集 ${selectedCollection?.seasonId}`,
+          },
+          ...flattenedCollectionOptions,
+        ]
+      : flattenedCollectionOptions;
+
+  const clearCollectionSelection = () => {
+    form.setValue('uploadSettings.collection.autoAdd', false, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.seasonId', null, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.sectionId', null, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.seasonTitle', null, {
+      shouldDirty: true,
+    });
+    form.setValue('uploadSettings.collection.sectionTitle', null, {
+      shouldDirty: true,
+    });
+  };
+
+  const handleSelectCollection = (value: string) => {
+    if (value === COLLECTION_NONE_VALUE) {
+      clearCollectionSelection();
+      return;
+    }
+
+    const option = flattenedCollectionOptions.find(item => item.value === value);
+    if (!option) {
+      return;
+    }
+
+    form.setValue('uploadSettings.collection.autoAdd', true, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.seasonId', option.seasonId, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.sectionId', option.sectionId, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.seasonTitle', option.seasonTitle, {
+      shouldDirty: true,
+    });
+    form.setValue('uploadSettings.collection.sectionTitle', option.sectionTitle, {
+      shouldDirty: true,
+    });
+  };
+
+  const bindCollection = (
+    season: BilibiliSeason,
+    section: BilibiliSeason['sections'][number]
+  ) => {
+    form.setValue('uploadSettings.collection.autoAdd', true, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.seasonId', season.id, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.sectionId', section.id, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue('uploadSettings.collection.seasonTitle', season.title, {
+      shouldDirty: true,
+    });
+    form.setValue('uploadSettings.collection.sectionTitle', section.title, {
+      shouldDirty: true,
+    });
+  };
+
+  const handleCreateCollection = async () => {
+    const streamerName = form.getValues('name').trim();
+    const title =
+      newCollectionTitle.trim() ||
+      (streamerName ? `${streamerName}直播录像` : '直播录像合集');
+    const cover =
+      form.getValues('coverDataUrl') ||
+      form.getValues('coverPath') ||
+      initialValues?.coverPath ||
+      undefined;
+
+    if (!cover) {
+      toast.error('请先上传主播封面');
+      return;
+    }
+
+    setCreatingSeason(true);
+    try {
+      const result = await api.createBilibiliSeason({
+        title,
+        desc: newCollectionDesc.trim() || undefined,
+        cover,
+      });
+      const season = result.season;
+      const section = season.sections[0];
+      setSeasons(current => [
+        season,
+        ...current.filter(item => item.id !== season.id),
+      ]);
+
+      if (!section) {
+        toast.error('合集已创建，但未返回可绑定的小节');
+        return;
+      }
+
+      bindCollection(season, section);
+      setShowCollectionCreator(false);
+      setNewCollectionTitle('');
+      setNewCollectionDesc('');
+      toast.success('合集已创建并绑定');
+    } finally {
+      setCreatingSeason(false);
+    }
+  };
 
   const handleParseUrl = async () => {
     if (!urlInput.trim()) {
@@ -262,7 +538,7 @@ export function StreamerFormDialog({
       setUrlInput('');
     } else {
       toast.error('无法解析链接', {
-        description: '请检查链接是否正确，支持 B站、虎牙、斗鱼直播间链接',
+        description: '请检查链接是否正确，支持 B站、虎牙、斗鱼、抖音直播间链接',
       });
     }
     setIsParsing(false);
@@ -362,7 +638,7 @@ export function StreamerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-[800px]">
         <DialogHeader>
           <DialogTitle>
             {mode === 'create' ? '添加主播' : '编辑主播'}
@@ -375,11 +651,14 @@ export function StreamerFormDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit(handleSubmit)}
+            className="min-w-0 space-y-4"
+          >
             {/* URL Parsing - only in create mode */}
             {mode === 'create' && (
-              <div className="flex gap-2">
-                <div className="flex-1">
+              <div className="flex min-w-0 gap-2">
+                <div className="min-w-0 flex-1">
                   <div className="relative">
                     <Link2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -411,10 +690,13 @@ export function StreamerFormDialog({
               </div>
             )}
 
-            {/* Two column layout */}
-            <div className="grid grid-cols-2 gap-6">
-              {/* Left Column - 录制设置 */}
-              <div className="space-y-4">
+            <Tabs defaultValue="recording" className="min-w-0">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="recording">录制设置</TabsTrigger>
+                <TabsTrigger value="submission">投稿设置</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="recording" className="min-w-0 space-y-4">
                 <div className="space-y-1">
                   <h3 className="text-sm font-medium">基本信息</h3>
                   <p className="text-xs text-muted-foreground">
@@ -438,6 +720,7 @@ export function StreamerFormDialog({
                           <SelectItem value="bilibili">Bilibili</SelectItem>
                           <SelectItem value="huya">虎牙</SelectItem>
                           <SelectItem value="douyu">斗鱼</SelectItem>
+                          <SelectItem value="douyin">抖音</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -445,7 +728,7 @@ export function StreamerFormDialog({
                   )}
                 />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="streamerId"
@@ -512,7 +795,7 @@ export function StreamerFormDialog({
                       className="hidden"
                       onChange={handleSelectCover}
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="secondary"
@@ -579,7 +862,7 @@ export function StreamerFormDialog({
                         </div>
                         <FormControl>
                           <Switch
-                            checked={field.value}
+	                          checked={field.value}
                             onCheckedChange={field.onChange}
                           />
                         </FormControl>
@@ -600,7 +883,7 @@ export function StreamerFormDialog({
                         </div>
                         <FormControl>
                           <Switch
-                            checked={field.value}
+	                          checked={field.value}
                             onCheckedChange={field.onChange}
                           />
                         </FormControl>
@@ -608,10 +891,9 @@ export function StreamerFormDialog({
                     )}
                   />
                 </div>
-              </div>
+              </TabsContent>
 
-              {/* Right Column - 投稿设置 */}
-              <div className="space-y-4">
+              <TabsContent value="submission" className="min-w-0 space-y-4">
                 <div className="space-y-1">
                   <h3 className="text-sm font-medium">投稿设置</h3>
                   <p className="text-xs text-muted-foreground">
@@ -632,13 +914,70 @@ export function StreamerFormDialog({
                       </div>
                       <FormControl>
                         <Switch
-                          checked={field.value}
+	                          checked={Boolean(field.value)}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
                     </FormItem>
                   )}
                 />
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.rhythm.mode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>投稿节奏</FormLabel>
+                        <Select
+                          value={field.value || 'complete'}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="选择投稿节奏" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="complete">
+                              录制结束后投稿
+                            </SelectItem>
+                            <SelectItem value="segmented">
+                              分段投稿
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {rhythmMode === 'segmented' && (
+                    <FormField
+                      control={form.control}
+                      name="uploadSettings.rhythm.intervalMinutes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>投稿间隔（分钟）</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={720}
+                              step={1}
+                              {...field}
+                              value={field.value ?? 30}
+                              onChange={event =>
+                                field.onChange(Number(event.target.value))
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
 
                 <FormField
                   control={form.control}
@@ -648,16 +987,17 @@ export function StreamerFormDialog({
                       <FormLabel>视频标题</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="支持模板变量: {streamerName}, {date}, {time}"
+                          placeholder="支持模板变量: {主播名}, {房间名}, {日期}, {时间}"
                           {...field}
                           value={field.value || ''}
                         />
                       </FormControl>
                       <FormDescription className="text-xs">
                         留空时使用系统默认模板。可用变量：
-                        {` {streamerName} `}
-                        、{`{date}`}、{`{time}`}。例如：
-                        {` {streamerName}的直播录像 {date} {time}`}
+                        {` {主播名} `}
+                        、{`{房间名}`}（录制开始时房间名）、{`{日期}`}、
+                        {`{时间}`}。例如：
+                        {` {主播名}的{房间名}直播录像 {日期} {时间}`}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -666,31 +1006,152 @@ export function StreamerFormDialog({
 
                 <FormField
                   control={form.control}
-                  name="uploadSettings.tid"
+                  name="uploadSettings.humanType2"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>投稿分区</FormLabel>
-                      <Select
-                        onValueChange={(value) => field.onChange(Number(value))}
-                        value={String(field.value || 171)}
-                        disabled={loadingPartitions}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择投稿分区" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {flattenedPartitions.map((partition) => (
-                            <SelectItem
-                              key={partition.id}
-                              value={String(partition.id)}
+                      <FormControl>
+                        <PartitionMenu
+                          partitions={partitions}
+                          value={field.value || DEFAULT_BILIBILI_HUMAN_TYPE2}
+                          onChange={field.onChange}
+                          disabled={loadingPartitions}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="uploadSettings.collection.autoAdd"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-sm">加入投稿合集</FormLabel>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={Boolean(field.value)}
+                          onCheckedChange={checked => {
+                            if (checked) {
+                              field.onChange(true);
+                              return;
+                            }
+                            clearCollectionSelection();
+                          }}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="uploadSettings.collection.sectionId"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel>投稿合集</FormLabel>
+                      <div className="flex min-w-0 flex-wrap gap-2">
+                        <div className="min-w-[12rem] flex-1">
+                          <Select
+                            value={selectedCollectionValue}
+                            onValueChange={handleSelectCollection}
+                            disabled={!collectionAutoAdd || loadingSeasons}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full min-w-0">
+                                <SelectValue placeholder="选择投稿合集" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value={COLLECTION_NONE_VALUE}>
+                                不加入合集
+                              </SelectItem>
+                              {collectionOptions.map(option => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0"
+                          aria-label="刷新投稿合集"
+                          onClick={() => loadSeasons({ refresh: true })}
+                          disabled={loadingSeasons}
+                        >
+                          {loadingSeasons ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="shrink-0"
+                          onClick={() => {
+                            const streamerName = form.getValues('name').trim();
+                            setNewCollectionTitle(
+                              newCollectionTitle ||
+                                (streamerName ? `${streamerName}直播录像` : '')
+                            );
+                            setShowCollectionCreator(value => !value);
+                          }}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          新建
+                        </Button>
+                      </div>
+                      {showCollectionCreator && (
+                        <div className="mt-3 space-y-3 rounded-lg border p-3">
+                          <Input
+                            placeholder="合集标题"
+                            value={newCollectionTitle}
+                            onChange={event =>
+                              setNewCollectionTitle(event.target.value)
+                            }
+                          />
+                          <Textarea
+                            placeholder="合集简介"
+                            className="resize-none"
+                            rows={2}
+                            value={newCollectionDesc}
+                            onChange={event =>
+                              setNewCollectionDesc(event.target.value)
+                            }
+                          />
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setShowCollectionCreator(false)}
+                              disabled={creatingSeason}
                             >
-                              {partition.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                              取消
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={handleCreateCollection}
+                              disabled={creatingSeason}
+                            >
+                              {creatingSeason && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              创建并绑定
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -703,8 +1164,9 @@ export function StreamerFormDialog({
                     <FormItem>
                       <FormLabel>标签</FormLabel>
                       <div className="space-y-2">
-                        <div className="flex gap-2">
+                        <div className="flex min-w-0 gap-2">
                           <Input
+                            className="min-w-0"
                             placeholder="输入标签"
                             value={tagInput}
                             onChange={(e) => setTagInput(e.target.value)}
@@ -763,8 +1225,8 @@ export function StreamerFormDialog({
                     </FormItem>
                   )}
                 />
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
 
             <DialogFooter className="mt-6">
               <Button

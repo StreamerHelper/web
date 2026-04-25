@@ -2,10 +2,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export function TableSkeleton({ rows = 10 }: { rows?: number }) {
   return (
-    <div className="w-full space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className="h-12 w-full" />
-      ))}
+    <div className="w-full overflow-hidden rounded-lg border bg-card">
+      <Skeleton className="h-10 w-full rounded-none" />
+      <div className="divide-y">
+        {Array.from({ length: rows }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full rounded-none" />
+        ))}
+      </div>
     </div>
   );
 }

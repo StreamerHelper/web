@@ -21,6 +21,7 @@ const PLATFORM_ROOM_URLS: Record<string, (roomId: string) => string> = {
   douyin: (roomId) => `https://live.douyin.com/${roomId}`,
   huya: (roomId) => `https://www.huya.com/${roomId}`,
   bilibili: (roomId) => `https://live.bilibili.com/${roomId}`,
+  douyu: (roomId) => `https://www.douyu.com/${roomId}`,
 };
 
 interface JobTableRowProps {

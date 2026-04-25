@@ -1,11 +1,21 @@
-import type { JobStatus, Platform, RecordingQuality } from './entities';
+import type {
+  BilibiliCollectionBinding,
+  JobStatus,
+  Platform,
+  RecordingQuality,
+} from './entities';
 
 export interface UploadSettings {
   autoUpload?: boolean;
+  rhythm?: {
+    mode?: 'complete' | 'segmented';
+    intervalMinutes?: number;
+  };
   title?: string;
   description?: string;
   tags?: string[];
-  tid?: number;
+  humanType2?: number;
+  collection?: BilibiliCollectionBinding;
 }
 
 export interface StreamerFormValues {

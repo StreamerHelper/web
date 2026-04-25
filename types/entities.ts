@@ -1,4 +1,4 @@
-export type Platform = 'bilibili' | 'huya' | 'douyu';
+export type Platform = 'bilibili' | 'huya' | 'douyu' | 'douyin';
 export type RecordingQuality = 'low' | 'medium' | 'high';
 
 export type JobStatus = 'pending' | 'recording' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'stopping';
@@ -62,11 +62,24 @@ export interface Streamer {
   };
   uploadSettings?: {
     autoUpload?: boolean;
+    rhythm?: {
+      mode?: 'complete' | 'segmented';
+      intervalMinutes?: number;
+    };
     title?: string;
     description?: string;
     tags?: string[];
-    tid?: number;
+    humanType2?: number;
+    collection?: BilibiliCollectionBinding;
   };
+}
+
+export interface BilibiliCollectionBinding {
+  autoAdd?: boolean;
+  seasonId?: number | null;
+  sectionId?: number | null;
+  seasonTitle?: string | null;
+  sectionTitle?: string | null;
 }
 
 export interface StreamStatus {
@@ -212,6 +225,7 @@ export interface SystemInfoStreamers {
       bilibili: number;
       douyu: number;
       huya: number;
+      douyin: number;
     };
   };
   live: {
@@ -300,14 +314,42 @@ export type SubmissionStatus = 'pending' | 'uploading' | 'submitting' | 'complet
 
 export interface SubmissionPart {
   index: number;
+  title?: string;
   status: string;
-  uploadProgress: number;
+  s3Keys?: string[];
+  filename?: string;
+  cid?: number;
+  rhythmIntervalMinutes?: number;
+  startedAt?: string;
+  endedAt?: string;
+  duration?: number;
+  size?: number;
+  error?: string;
+  uploadProgress?: number;
 }
 
 export interface BilibiliPartition {
   id: number;
   name: string;
-  children?: { id: number; name: string }[];
+  children?: BilibiliPartition[];
+}
+
+export interface BilibiliSeasonSection {
+  id: number;
+  seasonId: number;
+  title: string;
+  order?: number;
+  epCount?: number;
+}
+
+export interface BilibiliSeason {
+  id: number;
+  title: string;
+  desc?: string;
+  cover?: string;
+  state?: number;
+  epCount?: number;
+  sections: BilibiliSeasonSection[];
 }
 
 export interface BilibiliSubmission {
@@ -318,7 +360,16 @@ export interface BilibiliSubmission {
   totalParts: number;
   completedParts: number;
   parts: SubmissionPart[];
+  humanType2?: number | null;
   bvid: string | null;
+  avid?: number | null;
+  collectionAutoAdd?: boolean;
+  collectionSeasonId?: number | null;
+  collectionSectionId?: number | null;
+  collectionSeasonTitle?: string | null;
+  collectionSectionTitle?: string | null;
+  collectionEpisodeId?: number | null;
+  collectionAddedAt?: string | null;
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
@@ -329,7 +380,8 @@ export interface CreateSubmissionRequest {
   title: string;
   description?: string;
   tags?: string[];
-  tid?: number;
+  humanType2?: number;
+  collection?: BilibiliCollectionBinding;
 }
 
 export interface BilibiliSubmissionsResponse {
@@ -339,6 +391,21 @@ export interface BilibiliSubmissionsResponse {
 
 export interface BilibiliPartitionsResponse {
   partitions: BilibiliPartition[];
+}
+
+export interface BilibiliSeasonsResponse {
+  seasons: BilibiliSeason[];
+  total: number;
+}
+
+export interface CreateBilibiliSeasonRequest {
+  title: string;
+  desc?: string;
+  cover?: string;
+}
+
+export interface CreateBilibiliSeasonResponse {
+  season: BilibiliSeason;
 }
 
 export interface PaginatedResponse<T> {

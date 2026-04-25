@@ -7,6 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -26,7 +34,17 @@ import { formatDuration, formatTime } from '@/lib/format';
 import type { BrowsedJob, BilibiliSubmission } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { Calendar, Clock, Download, HardDrive, MoreVertical, Upload, X } from 'lucide-react';
+import {
+  Calendar,
+  Clock,
+  Download,
+  HardDrive,
+  LayoutGrid,
+  List,
+  MoreVertical,
+  Upload,
+  X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { JobVideoDialog } from '../../../components/content/job-video-dialog';
 import { SubmitDialog } from '../../../components/content/submit-dialog';
@@ -37,6 +55,7 @@ export default function ContentPage() {
   const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
   const [submitJob, setSubmitJob] = useState<BrowsedJob | null>(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<'cards' | 'list'>('cards');
 
   // Filters (actual values used for API requests)
   const [streamerName, setStreamerName] = useState<string>('all');
@@ -167,98 +186,125 @@ export default function ContentPage() {
       <PageHeader title="内容浏览" description="浏览录制的视频内容" />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Streamer Filter */}
-        <Select value={streamerName} onValueChange={setStreamerName}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="全部主播" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部主播</SelectItem>
-            {streamers?.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Streamer Filter */}
+          <Select value={streamerName} onValueChange={setStreamerName}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="全部主播" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部主播</SelectItem>
+              {streamers?.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        {/* Date Range Filter */}
-        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-[180px] justify-start">
-              <Calendar className="h-4 w-4 mr-2" />
-              {formatDateRange()}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <div className="p-3 border-b">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setTempStartDate(undefined);
-                    setTempEndDate(undefined);
-                  }}
-                >
-                  清除
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setStartDate(tempStartDate);
-                    setEndDate(tempEndDate);
-                    setDatePickerOpen(false);
-                  }}
-                >
-                  确定
-                </Button>
+          {/* Date Range Filter */}
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-[180px] justify-start">
+                <Calendar className="h-4 w-4 mr-2" />
+                {formatDateRange()}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <div className="p-3 border-b">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTempStartDate(undefined);
+                      setTempEndDate(undefined);
+                    }}
+                  >
+                    清除
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setStartDate(tempStartDate);
+                      setEndDate(tempEndDate);
+                      setDatePickerOpen(false);
+                    }}
+                  >
+                    确定
+                  </Button>
+                </div>
               </div>
-            </div>
-            <CalendarComponent
-              mode="range"
-              selected={{ from: tempStartDate, to: tempEndDate }}
-              onSelect={(range) => {
-                setTempStartDate(range?.from);
-                setTempEndDate(range?.to);
-              }}
-              numberOfMonths={2}
-              locale={zhCN}
-            />
-          </PopoverContent>
-        </Popover>
+              <CalendarComponent
+                mode="range"
+                selected={{ from: tempStartDate, to: tempEndDate }}
+                onSelect={(range) => {
+                  setTempStartDate(range?.from);
+                  setTempEndDate(range?.to);
+                }}
+                numberOfMonths={2}
+                locale={zhCN}
+              />
+            </PopoverContent>
+          </Popover>
 
-        {/* Segment Count Filter */}
-        <div className="flex items-center gap-2 border rounded-md px-3 py-2">
-          <Switch
-            id="segment-filter"
-            checked={segmentFilterEnabled}
-            onCheckedChange={setSegmentFilterEnabled}
-          />
-          <label
-            htmlFor="segment-filter"
-            className="text-sm font-medium cursor-pointer"
-          >
-            片段数 ≥
-          </label>
-          <Input
-            type="number"
-            min="1"
-            value={minSegmentCount}
-            onChange={(e) => setMinSegmentCount(parseInt(e.target.value) || 1)}
-            disabled={!segmentFilterEnabled}
-            className="w-16 h-8"
-          />
+          {/* Segment Count Filter */}
+          <div className="flex items-center gap-2 border rounded-md px-3 py-2">
+            <Switch
+              id="segment-filter"
+              checked={segmentFilterEnabled}
+              onCheckedChange={setSegmentFilterEnabled}
+            />
+            <label
+              htmlFor="segment-filter"
+              className="text-sm font-medium cursor-pointer"
+            >
+              片段数 ≥
+            </label>
+            <Input
+              type="number"
+              min="1"
+              value={minSegmentCount}
+              onChange={(e) => setMinSegmentCount(parseInt(e.target.value) || 1)}
+              disabled={!segmentFilterEnabled}
+              className="w-16 h-8"
+            />
+          </div>
+
+          {/* Clear Filters */}
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <X className="h-4 w-4 mr-1" />
+              清除筛选
+            </Button>
+          )}
         </div>
 
-        {/* Clear Filters */}
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <X className="h-4 w-4 mr-1" />
-            清除筛选
+        <div className="flex shrink-0 items-center self-end rounded-md border bg-background p-1 lg:self-auto">
+          <Button
+            type="button"
+            variant={layoutMode === 'cards' ? 'secondary' : 'ghost'}
+            size="icon-sm"
+            aria-label="卡片布局"
+            aria-pressed={layoutMode === 'cards'}
+            title="卡片布局"
+            onClick={() => setLayoutMode('cards')}
+          >
+            <LayoutGrid className="h-4 w-4" />
           </Button>
-        )}
+          <Button
+            type="button"
+            variant={layoutMode === 'list' ? 'secondary' : 'ghost'}
+            size="icon-sm"
+            aria-label="列表布局"
+            aria-pressed={layoutMode === 'list'}
+            title="列表布局"
+            onClick={() => setLayoutMode('list')}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -266,11 +312,19 @@ export default function ContentPage() {
           {[1, 2, 3].map(i => (
             <div key={i} className="space-y-4">
               <div className="h-6 w-32 animate-pulse rounded bg-muted" />
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {[1, 2, 3, 4].map(j => (
-                  <div key={j} className="h-48 animate-pulse rounded-lg bg-muted" />
-                ))}
-              </div>
+              {layoutMode === 'cards' ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {[1, 2, 3, 4].map(j => (
+                    <div key={j} className="h-48 animate-pulse rounded-lg bg-muted" />
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border">
+                  {[1, 2, 3, 4].map(j => (
+                    <div key={j} className="h-24 animate-pulse border-b bg-muted last:border-b-0" />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -287,20 +341,32 @@ export default function ContentPage() {
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 {group.date}
               </h3>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {group.jobs.map((job) => (
-                  <JobCard
-                    key={job.id}
-                    job={job}
-                    onPlay={() => {
-                      setSelectedJobId(job.id);
-                      setShouldAutoPlay(true);
-                    }}
-                    onSubmit={() => openSubmitDialog(job)}
-                    onDownload={() => handleDownload(job)}
-                  />
-                ))}
-              </div>
+              {layoutMode === 'cards' ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {group.jobs.map((job) => (
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      onPlay={() => {
+                        setSelectedJobId(job.id);
+                        setShouldAutoPlay(true);
+                      }}
+                      onSubmit={() => openSubmitDialog(job)}
+                      onDownload={() => handleDownload(job)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <JobTable
+                  jobs={group.jobs}
+                  onPlay={(job) => {
+                    setSelectedJobId(job.id);
+                    setShouldAutoPlay(true);
+                  }}
+                  onSubmit={openSubmitDialog}
+                  onDownload={handleDownload}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -342,6 +408,7 @@ function PlatformCoverPlaceholder({ platform }: { platform: BrowsedJob['platform
     bilibili: '/platform-logos/bilibili.ico',
     huya: '/platform-logos/huya.ico',
     douyu: '/platform-logos/douyu.ico',
+    douyin: '/platform-logos/douyin.ico',
   };
 
   return (
@@ -354,6 +421,87 @@ function PlatformCoverPlaceholder({ platform }: { platform: BrowsedJob['platform
       />
     </div>
   );
+}
+
+interface JobTableProps {
+  jobs: BrowsedJob[];
+  onPlay: (job: BrowsedJob) => void;
+  onSubmit: (job: BrowsedJob) => void;
+  onDownload: (job: BrowsedJob) => void;
+}
+
+function JobTable({ jobs, onPlay, onSubmit, onDownload }: JobTableProps) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="min-w-[260px]">标题名</TableHead>
+          <TableHead className="w-[110px]">平台</TableHead>
+          <TableHead className="w-[150px]">主播</TableHead>
+          <TableHead className="w-[120px]">时间</TableHead>
+          <TableHead className="w-[100px]">时长</TableHead>
+          <TableHead className="w-[90px]">片段</TableHead>
+          <TableHead className="w-[80px] text-right">操作</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {jobs.map(job => (
+          <TableRow key={job.id}>
+            <TableCell className="max-w-[420px]">
+              <button
+                type="button"
+                className="block max-w-full truncate text-left font-medium hover:text-primary"
+                onClick={() => onPlay(job)}
+              >
+                {job.title}
+              </button>
+            </TableCell>
+            <TableCell>
+              <span className="inline-flex items-center gap-1.5">
+                <PlatformIcon platform={job.platform} />
+                <span>{formatPlatformName(job.platform)}</span>
+              </span>
+            </TableCell>
+            <TableCell className="max-w-[180px] truncate">
+              {job.streamerName}
+            </TableCell>
+            <TableCell>{formatTime(job.startTime)}</TableCell>
+            <TableCell>{formatDuration(job.duration)}</TableCell>
+            <TableCell>{job.segmentCount}</TableCell>
+            <TableCell className="text-right">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onSubmit(job)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    投稿到B站
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDownload(job)}>
+                    <Download className="h-4 w-4 mr-2" />
+                    下载
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function formatPlatformName(platform: BrowsedJob['platform']) {
+  const platformNames: Record<BrowsedJob['platform'], string> = {
+    bilibili: 'Bilibili',
+    huya: '虎牙',
+    douyu: '斗鱼',
+    douyin: '抖音',
+  };
+  return platformNames[platform];
 }
 
 function JobCard({ job, onPlay, onSubmit, onDownload }: JobCardProps) {

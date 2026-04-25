@@ -20,12 +20,14 @@ export const PLATFORM_COLORS = {
   bilibili: '#FB7299',
   huya: '#FF9900',
   douyu: '#FF6600',
+  douyin: '#111827',
 } as const;
 
 export const PLATFORM_ROOM_URLS = {
   bilibili: (roomId: string) => `https://live.bilibili.com/${roomId}`,
   huya: (roomId: string) => `https://www.huya.com/${roomId}`,
   douyu: (roomId: string) => `https://www.douyu.com/${roomId}`,
+  douyin: (roomId: string) => `https://live.douyin.com/${roomId}`,
 } as const;
 
 export const QUALITY_OPTIONS = [

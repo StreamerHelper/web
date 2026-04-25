@@ -60,6 +60,7 @@ export function getPlatformColor(platform: Platform): string {
     bilibili: '#FB7299',
     huya: '#FF9900',
     douyu: '#FF6600',
+    douyin: '#111827',
   };
   return colors[platform] || '#666666';
 }
@@ -72,6 +73,7 @@ export function getPlatformLabel(platform: Platform): string {
     bilibili: 'Bilibili',
     huya: '虎牙',
     douyu: '斗鱼',
+    douyin: '抖音',
   };
   return labels[platform] || platform;
 }

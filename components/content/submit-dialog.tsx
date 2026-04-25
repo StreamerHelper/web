@@ -21,13 +21,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -36,12 +29,16 @@ import { Loader2, X, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import type { BrowsedJob, BilibiliPartition, BilibiliSubmission } from '@/types';
+import {
+  DEFAULT_BILIBILI_HUMAN_TYPE2,
+  PartitionMenu,
+} from '@/components/bilibili/partition-menu';
 
 const submitSchema = z.object({
   title: z.string().min(1, '请输入标题').max(80, '标题最多80个字符'),
   description: z.string().max(2000, '简介最多2000个字符').optional(),
   tags: z.array(z.string()).max(10, '最多10个标签').optional(),
-  tid: z.number().optional(),
+  humanType2: z.number().optional(),
 });
 
 type SubmitFormValues = z.infer<typeof submitSchema>;
@@ -65,24 +62,27 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
       title: '',
       description: '',
       tags: [],
-      tid: 171,
+      humanType2: DEFAULT_BILIBILI_HUMAN_TYPE2,
     },
   });
 
-  // Load partitions
+  const loadPartitions = (options?: { refresh?: boolean }) => {
+    setLoadingPartitions(true);
+    api.getBilibiliPartitions({ refresh: options?.refresh })
+      .then((data) => {
+        setPartitions(data.partitions);
+      })
+      .catch(() => {
+        toast.error('加载分区列表失败');
+      })
+      .finally(() => {
+        setLoadingPartitions(false);
+      });
+  };
+
   useEffect(() => {
     if (open) {
-      setLoadingPartitions(true);
-      api.getBilibiliPartitions()
-        .then((data) => {
-          setPartitions(data.partitions);
-        })
-        .catch(() => {
-          toast.error('加载分区列表失败');
-        })
-        .finally(() => {
-          setLoadingPartitions(false);
-        });
+      loadPartitions();
     }
   }, [open]);
 
@@ -92,10 +92,10 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
       const date = new Date(job.startTime);
       const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       form.reset({
-        title: `【直播回放】${job.title} - ${dateStr}`,
+        title: job.title,
         description: `${job.streamerName} 直播回放\n\n直播时间：${dateStr}`,
         tags: ['直播回放', job.streamerName],
-        tid: 171,
+        humanType2: DEFAULT_BILIBILI_HUMAN_TYPE2,
       });
     }
   }, [job, form]);
@@ -131,7 +131,7 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
         title: values.title,
         description: values.description,
         tags: values.tags,
-        tid: values.tid || 171,
+        humanType2: values.humanType2 || DEFAULT_BILIBILI_HUMAN_TYPE2,
       });
       toast.success('投稿任务已创建');
       onSuccess?.(submission);
@@ -143,14 +143,9 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
     }
   };
 
-  // Flatten partitions for select
-  const flattenedPartitions = partitions.flatMap((p) =>
-    p.children?.map((c) => ({ id: c.id, name: `${p.name} - ${c.name}` })) || []
-  );
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[calc(100vw-2rem)] overflow-x-hidden sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>投稿到B站</DialogTitle>
           <DialogDescription>
@@ -168,11 +163,15 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
                   <FormLabel>视频标题</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="输入视频标题"
+                      placeholder="支持模板变量: {主播名}, {房间名}, {日期}, {时间}"
                       maxLength={80}
                       {...field}
                     />
                   </FormControl>
+                  <FormDescription className="text-xs">
+                    可用变量：{`{主播名}`}、{`{房间名}`}
+                    （录制开始时房间名）、{`{日期}`}、{`{时间}`}。
+                  </FormDescription>
                   <div className="flex justify-between">
                     <FormMessage />
                     <span className="text-xs text-muted-foreground ml-auto">
@@ -206,28 +205,18 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
 
             <FormField
               control={form.control}
-              name="tid"
+              name="humanType2"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>投稿分区</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(Number(value))}
-                    value={String(field.value || 171)}
-                    disabled={loadingPartitions}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择投稿分区" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {flattenedPartitions.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <PartitionMenu
+                      partitions={partitions}
+                      value={field.value || DEFAULT_BILIBILI_HUMAN_TYPE2}
+                      onChange={field.onChange}
+                      disabled={loadingPartitions}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

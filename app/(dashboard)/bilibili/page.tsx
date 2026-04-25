@@ -13,12 +13,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { api } from '@/lib/api';
-import { formatTime } from '@/lib/format';
-import type { BilibiliSubmission, SubmissionStatus } from '@/types';
+import { formatDateTime, formatDuration, formatFileSize } from '@/lib/format';
+import type { BilibiliSubmission, SubmissionPart, SubmissionStatus } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertCircle,
+  ChevronDown,
+  ChevronRight,
   CheckCircle,
   Clock,
   ExternalLink,
@@ -28,7 +38,7 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: '等待中', icon: Clock, variant: 'secondary' },
@@ -119,19 +129,10 @@ export default function BilibiliPage() {
 
       {/* Submissions List */}
       {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="py-4">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-muted animate-pulse" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-48 bg-muted animate-pulse rounded" />
-                    <div className="h-3 w-32 bg-muted animate-pulse rounded" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="overflow-hidden rounded-lg border bg-card">
+          <div className="h-10 animate-pulse bg-muted/60" />
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="h-12 animate-pulse border-t bg-muted/30" />
           ))}
         </div>
       ) : error ? (
@@ -152,11 +153,7 @@ export default function BilibiliPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {data.items.map((submission) => (
-            <SubmissionCard key={submission.id} submission={submission} />
-          ))}
-        </div>
+        <SubmissionTable submissions={data.items} />
       )}
 
       {/* Pagination */}
@@ -189,12 +186,73 @@ export default function BilibiliPage() {
   );
 }
 
-// Submission Card Component
-interface SubmissionCardProps {
-  submission: BilibiliSubmission;
+interface SubmissionTableProps {
+  submissions: BilibiliSubmission[];
 }
 
-function SubmissionCard({ submission }: SubmissionCardProps) {
+function SubmissionTable({ submissions }: SubmissionTableProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-10">
+            <span className="sr-only">展开详情</span>
+          </TableHead>
+          <TableHead className="min-w-[280px]">投稿标题</TableHead>
+          <TableHead className="w-[120px]">状态</TableHead>
+          <TableHead className="w-[170px]">投稿时间</TableHead>
+          <TableHead className="w-[160px]">分 P 进度</TableHead>
+          <TableHead className="min-w-[180px]">投稿合集</TableHead>
+          <TableHead className="w-[160px]">B站稿件</TableHead>
+          <TableHead className="min-w-[180px]">错误信息</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {submissions.map(submission => {
+          const expanded = expandedIds.has(submission.id);
+          return (
+            <Fragment key={submission.id}>
+              <SubmissionRow
+                submission={submission}
+                expanded={expanded}
+                onToggle={() => toggleExpanded(submission.id)}
+              />
+              {expanded && (
+                <TableRow key={`${submission.id}-parts`} className="bg-muted/15 hover:bg-muted/15">
+                  <TableCell colSpan={8} className="p-3">
+                    <SubmissionPartsTable submission={submission} />
+                  </TableCell>
+                </TableRow>
+              )}
+            </Fragment>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
+interface SubmissionRowProps {
+  submission: BilibiliSubmission;
+  expanded: boolean;
+  onToggle: () => void;
+}
+
+function SubmissionRow({ submission, expanded, onToggle }: SubmissionRowProps) {
   const config = STATUS_CONFIG[submission.status];
   const StatusIcon = config.icon;
   const progress = submission.totalParts > 0
@@ -202,69 +260,202 @@ function SubmissionCard({ submission }: SubmissionCardProps) {
     : 0;
 
   return (
-    <Card>
-      <CardContent className="py-2.5 px-4">
-        <div className="flex items-center gap-3">
-          {/* Status Icon */}
-          <div className={`
-            flex h-8 w-8 shrink-0 items-center justify-center rounded-lg
-            ${submission.status === 'completed' ? 'bg-green-100 dark:bg-green-900' : ''}
-            ${submission.status === 'failed' ? 'bg-red-100 dark:bg-red-900' : ''}
-            ${submission.status === 'uploading' || submission.status === 'submitting' ? 'bg-blue-100 dark:bg-blue-900' : ''}
-            ${submission.status === 'pending' ? 'bg-gray-100 dark:bg-gray-800' : ''}
-          `}>
-            {submission.status === 'uploading' || submission.status === 'submitting' ? (
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
-            ) : (
-              <StatusIcon className={`
-                h-4 w-4
-                ${submission.status === 'completed' ? 'text-green-600 dark:text-green-400' : ''}
-                ${submission.status === 'failed' ? 'text-red-600 dark:text-red-400' : ''}
-                ${submission.status === 'pending' ? 'text-gray-500' : ''}
-              `} />
-            )}
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <h3 className="font-medium truncate text-sm">{submission.title}</h3>
-            <Badge variant={config.variant} className="text-xs px-1.5 py-0">
-              {config.label}
-            </Badge>
-            <span className="text-xs text-muted-foreground shrink-0">
-              {formatTime(submission.createdAt)}
-            </span>
-
-            {/* Success - BV Link */}
-            {submission.status === 'completed' && submission.bvid && (
-              <a
-                href={`https://www.bilibili.com/video/${submission.bvid}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
-              >
-                <ExternalLink className="h-3 w-3" />
-                {submission.bvid}
-              </a>
-            )}
-
-            {/* Failed - Error Message */}
-            {submission.lastError && (
-              <span className="text-xs text-destructive truncate">{submission.lastError}</span>
-            )}
-          </div>
-
-          {/* Progress - Right side compact */}
-          {(submission.status === 'uploading' || submission.status === 'submitting') && (
-            <div className="flex items-center gap-2 shrink-0 w-32">
-              <Progress value={progress} className="h-1.5 flex-1" />
-              <span className="text-xs text-muted-foreground w-12 text-right">
-                {submission.completedParts}/{submission.totalParts}
-              </span>
-            </div>
+    <TableRow>
+      <TableCell>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onToggle}
+          aria-label={expanded ? '收起分P详情' : '展开分P详情'}
+        >
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
           )}
+        </Button>
+      </TableCell>
+      <TableCell className="max-w-[420px]">
+        <div className="truncate font-medium" title={submission.title}>
+          {submission.title}
         </div>
-      </CardContent>
-    </Card>
+        <div className="mt-1 text-xs text-muted-foreground">
+          Job {submission.jobId}
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant={config.variant} className="gap-1.5">
+          {submission.status === 'uploading' || submission.status === 'submitting' ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <StatusIcon className="h-3 w-3" />
+          )}
+          {config.label}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        {formatDateTime(submission.createdAt)}
+      </TableCell>
+      <TableCell>
+        <div className="flex min-w-[130px] items-center gap-2">
+          <Progress value={progress} className="h-1.5 flex-1" />
+          <span className="w-11 text-right text-xs text-muted-foreground">
+            {submission.completedParts}/{submission.totalParts}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell>
+        {submission.collectionAutoAdd ? (
+          <div className="min-w-0">
+            <Badge variant="outline" className="max-w-[220px] truncate">
+              {submission.collectionSeasonTitle || `合集 ${submission.collectionSeasonId}`}
+            </Badge>
+            {submission.collectionSectionTitle && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                {submission.collectionSectionTitle}
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {submission.bvid ? (
+          <a
+            href={`https://www.bilibili.com/video/${submission.bvid}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            {submission.bvid}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
+      </TableCell>
+      <TableCell className="max-w-[260px]">
+        {submission.lastError ? (
+          <span className="block truncate text-destructive" title={submission.lastError}>
+            {submission.lastError}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        )}
+      </TableCell>
+    </TableRow>
   );
+}
+
+function SubmissionPartsTable({ submission }: { submission: BilibiliSubmission }) {
+  const parts = submission.parts || [];
+
+  if (parts.length === 0) {
+    return (
+      <div className="rounded-md border bg-background px-3 py-6 text-center text-sm text-muted-foreground">
+        暂无分 P 明细
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="px-1 text-sm font-medium">分 P 明细</div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[70px]">序号</TableHead>
+            <TableHead className="min-w-[160px]">分P标题</TableHead>
+            <TableHead className="w-[140px]">投稿类型</TableHead>
+            <TableHead className="w-[110px]">状态</TableHead>
+            <TableHead className="w-[90px]">分片数</TableHead>
+            <TableHead className="min-w-[250px]">时间范围</TableHead>
+            <TableHead className="w-[90px]">时长</TableHead>
+            <TableHead className="w-[110px]">文件大小</TableHead>
+            <TableHead className="min-w-[160px]">B站文件名</TableHead>
+            <TableHead className="w-[120px]">CID</TableHead>
+            <TableHead className="min-w-[180px]">错误信息</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {parts.map(part => (
+            <SubmissionPartRow key={part.index} part={part} />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function SubmissionPartRow({ part }: { part: SubmissionPart }) {
+  const status = getPartStatus(part.status);
+
+  return (
+    <TableRow>
+      <TableCell className="font-mono">P{part.index}</TableCell>
+      <TableCell className="font-medium">{part.title || '-'}</TableCell>
+      <TableCell>{formatPartType(part)}</TableCell>
+      <TableCell>
+        <Badge variant={status.variant}>{status.label}</Badge>
+      </TableCell>
+      <TableCell>{part.s3Keys?.length || 0}</TableCell>
+      <TableCell className="text-muted-foreground">
+        {formatPartTimeRange(part)}
+      </TableCell>
+      <TableCell>{formatDuration(part.duration || 0)}</TableCell>
+      <TableCell>{formatFileSize(part.size)}</TableCell>
+      <TableCell className="max-w-[220px] truncate" title={part.filename || undefined}>
+        {part.filename || '-'}
+      </TableCell>
+      <TableCell className="font-mono text-xs">{part.cid || '-'}</TableCell>
+      <TableCell className="max-w-[240px] truncate text-destructive" title={part.error || undefined}>
+        {part.error || '-'}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function formatPartType(part: SubmissionPart): string {
+  if (!part.rhythmIntervalMinutes) {
+    return '常规分P';
+  }
+
+  if (part.index === 1) {
+    return `首段投稿 / ${part.rhythmIntervalMinutes}分钟`;
+  }
+
+  return `追加分P / ${part.rhythmIntervalMinutes}分钟`;
+}
+
+function formatPartTimeRange(part: SubmissionPart): string {
+  if (!part.startedAt && !part.endedAt) {
+    return '-';
+  }
+
+  if (!part.endedAt || part.startedAt === part.endedAt) {
+    return formatDateTime(part.startedAt);
+  }
+
+  return `${formatDateTime(part.startedAt)} - ${formatDateTime(part.endedAt)}`;
+}
+
+function getPartStatus(status: string): {
+  label: string;
+  variant: 'default' | 'secondary' | 'destructive' | 'outline';
+} {
+  const statusMap: Record<string, {
+    label: string;
+    variant: 'default' | 'secondary' | 'destructive' | 'outline';
+  }> = {
+    pending: { label: '等待中', variant: 'secondary' },
+    merging: { label: '合并中', variant: 'outline' },
+    uploading: { label: '上传中', variant: 'default' },
+    completed: { label: '已完成', variant: 'default' },
+    failed: { label: '失败', variant: 'destructive' },
+  };
+
+  return statusMap[status] || { label: status || '-', variant: 'secondary' };
 }

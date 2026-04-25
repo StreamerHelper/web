@@ -18,7 +18,10 @@ import type {
   BilibiliSubmission,
   BilibiliSubmissionsResponse,
   BilibiliPartitionsResponse,
+  BilibiliSeasonsResponse,
   CreateSubmissionRequest,
+  CreateBilibiliSeasonRequest,
+  CreateBilibiliSeasonResponse,
 } from '@/types';
 import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
@@ -169,6 +172,21 @@ export const api = {
     const query = searchParams.toString();
     return (await client.get<BilibiliSubmissionsResponse>(`/api/bilibili/submission${query ? `?${query}` : ''}`)).data;
   },
-  getBilibiliPartitions: async () =>
-    (await client.get<BilibiliPartitionsResponse>('/api/bilibili/upload/partitions')).data,
+  getBilibiliPartitions: async (options?: { refresh?: boolean }) =>
+    (
+      await client.get<BilibiliPartitionsResponse>(
+        '/api/bilibili/upload/partitions',
+        {
+          params: options?.refresh ? { refresh: 1, _: Date.now() } : undefined,
+        }
+      )
+    ).data,
+  getBilibiliSeasons: async (options?: { refresh?: boolean }) =>
+    (
+      await client.get<BilibiliSeasonsResponse>('/api/bilibili/seasons', {
+        params: options?.refresh ? { refresh: 1, _: Date.now() } : undefined,
+      })
+    ).data,
+  createBilibiliSeason: async (data: CreateBilibiliSeasonRequest) =>
+    (await client.post<CreateBilibiliSeasonResponse>('/api/bilibili/seasons', data)).data,
 };
