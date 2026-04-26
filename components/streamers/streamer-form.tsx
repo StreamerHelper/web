@@ -68,6 +68,16 @@ const URL_PATTERNS = {
 } as const;
 
 const COLLECTION_NONE_VALUE = 'none';
+const DEFAULT_DELETE_DELAY_MINUTES = 6 * 60;
+const DELETE_DELAY_OPTIONS = [
+  { value: 60, label: '1小时后' },
+  { value: 6 * 60, label: '6小时后' },
+  { value: 12 * 60, label: '12小时后' },
+  { value: 24 * 60, label: '1天后' },
+  { value: 3 * 24 * 60, label: '3天后' },
+  { value: 7 * 24 * 60, label: '7天后' },
+  { value: 30 * 24 * 60, label: '30天后' },
+] as const;
 
 interface ParsedUrl {
   platform: Platform;
@@ -143,6 +153,16 @@ const streamerSchema = z
     recordSettings: z.object({
       quality: z.string().optional(),
       detectHighlights: z.boolean(),
+      autoDelete: z
+        .object({
+          enabled: z.boolean(),
+          delayMinutes: z
+            .number()
+            .int('删除时间必须是整数分钟')
+            .min(1, '删除时间至少 1 分钟')
+            .max(43200, '删除时间最多 30 天'),
+        })
+        .optional(),
     }),
     uploadSettings: z
       .object({
@@ -223,8 +243,14 @@ export function StreamerFormDialog({
     coverDataUrl: undefined,
     removeCover: false,
     recordSettings: {
-      quality: values?.recordSettings?.quality || 'medium',
+      quality: values?.recordSettings?.quality || 'high',
       detectHighlights: values?.recordSettings?.detectHighlights ?? false,
+      autoDelete: {
+        enabled: values?.recordSettings?.autoDelete?.enabled ?? false,
+        delayMinutes:
+          values?.recordSettings?.autoDelete?.delayMinutes ??
+          DEFAULT_DELETE_DELAY_MINUTES,
+      },
     },
     uploadSettings: {
       autoUpload: values?.uploadSettings?.autoUpload ?? true,
@@ -351,6 +377,9 @@ export function StreamerFormDialog({
   const selectedCollection = form.watch('uploadSettings.collection');
   const collectionAutoAdd = Boolean(selectedCollection?.autoAdd);
   const rhythmMode = form.watch('uploadSettings.rhythm.mode') || 'complete';
+  const autoDeleteEnabled = Boolean(
+    form.watch('recordSettings.autoDelete.enabled')
+  );
   const selectedCollectionValue =
     selectedCollection?.seasonId && selectedCollection?.sectionId
       ? `${selectedCollection.seasonId}:${selectedCollection.sectionId}`
@@ -638,7 +667,7 @@ export function StreamerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-[800px]">
+      <DialogContent className="max-h-[calc(100vh-1.5rem)] w-[calc(100vw-2rem)] overflow-y-auto overflow-x-hidden sm:max-w-[800px]">
         <DialogHeader>
           <DialogTitle>
             {mode === 'create' ? '添加主播' : '编辑主播'}
@@ -653,7 +682,7 @@ export function StreamerFormDialog({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(handleSubmit)}
-            className="min-w-0 space-y-4"
+            className="min-w-0 space-y-3"
           >
             {/* URL Parsing - only in create mode */}
             {mode === 'create' && (
@@ -696,7 +725,7 @@ export function StreamerFormDialog({
                 <TabsTrigger value="submission">投稿设置</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="recording" className="min-w-0 space-y-4">
+              <TabsContent value="recording" className="min-w-0 space-y-3">
                 <div className="space-y-1">
                   <h3 className="text-sm font-medium">基本信息</h3>
                   <p className="text-xs text-muted-foreground">
@@ -704,36 +733,50 @@ export function StreamerFormDialog({
                   </p>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="platform"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>平台</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择平台" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="bilibili">Bilibili</SelectItem>
-                          <SelectItem value="huya">虎牙</SelectItem>
-                          <SelectItem value="douyu">斗鱼</SelectItem>
-                          <SelectItem value="douyin">抖音</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <FormField
+                    control={form.control}
+                    name="platform"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-1">
+                        <FormLabel>平台</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="选择平台" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="bilibili">Bilibili</SelectItem>
+                            <SelectItem value="huya">虎牙</SelectItem>
+                            <SelectItem value="douyu">斗鱼</SelectItem>
+                            <SelectItem value="douyin">抖音</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-1">
+                        <FormLabel>主播名称</FormLabel>
+                        <FormControl>
+                          <Input placeholder="输入主播名称" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <FormField
                     control={form.control}
                     name="streamerId"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="sm:col-span-1">
                         <FormLabel>主播 ID</FormLabel>
                         <FormControl>
                           <Input placeholder="平台唯一ID" {...field} />
@@ -747,7 +790,7 @@ export function StreamerFormDialog({
                     control={form.control}
                     name="roomId"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="sm:col-span-1">
                         <FormLabel>房间号</FormLabel>
                         <FormControl>
                           <Input placeholder="直播间ID" {...field} />
@@ -758,142 +801,206 @@ export function StreamerFormDialog({
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>主播名称</FormLabel>
-                      <FormControl>
-                        <Input placeholder="输入主播名称" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormItem>
-                  <FormLabel>主播封面</FormLabel>
-                  <div className="space-y-3 rounded-lg border p-3">
-                    <div className="relative aspect-video overflow-hidden rounded-md bg-muted">
-                      {coverPreview ? (
-                        <img
-                          src={coverPreview}
-                          alt="主播封面预览"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                          未上传封面
-                        </div>
-                      )}
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={handleSelectCover}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {coverPreview ? '更换封面' : '上传封面'}
-                      </Button>
-                      {coverPreview && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>主播封面</FormLabel>
+                    <div className="space-y-2 rounded-lg border p-3">
+                      <div className="relative aspect-video overflow-hidden rounded-md bg-muted">
+                        {coverPreview ? (
+                          <img
+                            src={coverPreview}
+                            alt="主播封面预览"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                            未上传封面
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handleSelectCover}
+                      />
+                      <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
-                          variant="outline"
-                          onClick={handleRemoveCover}
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
                         >
-                          删除封面
+                          <Upload className="mr-2 h-4 w-4" />
+                          {coverPreview ? '更换封面' : '上传封面'}
                         </Button>
-                      )}
-                    </div>
-                    <FormDescription className="text-xs">
-                      支持 JPG、PNG、WebP，大小不超过 5MB。投稿到 B 站时会默认使用这张封面。
-                    </FormDescription>
-                  </div>
-                </FormItem>
-
-                <FormField
-                  control={form.control}
-                  name="recordSettings.quality"
-                  render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>录制质量</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择录制质量" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {QUALITY_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        保存到主播配置，自动录制、手动开始和重试都会沿用这项清晰度请求。
+                        {coverPreview && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRemoveCover}
+                          >
+                            删除封面
+                          </Button>
+                        )}
+                      </div>
+                      <FormDescription className="text-xs">
+                        支持 JPG、PNG、WebP，最大 5MB。投稿默认使用这张封面。
                       </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    </div>
+                  </FormItem>
 
-                <div className="space-y-3">
-                  <FormField
-                    control={form.control}
-                    name="isActive"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-sm">启用监控</FormLabel>
+                  <div className="grid min-w-0 grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="recordSettings.quality"
+                      render={({ field }) => (
+                        <FormItem className="sm:col-span-2">
+                          <FormLabel>录制质量</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="选择录制质量" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {QUALITY_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormDescription className="text-xs">
-                            自动检查直播状态
+                            自动录制、手动开始和重试都会沿用这项清晰度请求。
                           </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-	                          checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={form.control}
-                    name="recordSettings.detectHighlights"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-sm">检测高光</FormLabel>
-                          <FormDescription className="text-xs">
-                            自动检测精彩片段
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-	                          checked={field.value}
-                            onCheckedChange={field.onChange}
+                    <FormField
+                      control={form.control}
+                      name="isActive"
+                      render={({ field }) => (
+                        <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm">启用监控</FormLabel>
+                            <FormDescription className="text-xs">
+                              自动检查直播状态
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="recordSettings.detectHighlights"
+                      render={({ field }) => (
+                        <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm">检测高光</FormLabel>
+                            <FormDescription className="text-xs">
+                              自动检测精彩片段
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="recordSettings.autoDelete.enabled"
+                      render={({ field }) => (
+                        <FormItem className="grid h-full grid-cols-[minmax(0,1fr)_160px] items-center gap-3 rounded-lg border p-3 sm:col-span-2">
+                          <div className="flex min-w-0 items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-sm">定时删除</FormLabel>
+                              <FormDescription className="text-xs">
+                                录制完成后按设置时间删除 S3 文件
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={Boolean(field.value)}
+                                onCheckedChange={checked => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    const currentDelay = form.getValues(
+                                      'recordSettings.autoDelete.delayMinutes'
+                                    );
+                                    if (!currentDelay) {
+                                      form.setValue(
+                                        'recordSettings.autoDelete.delayMinutes',
+                                        DEFAULT_DELETE_DELAY_MINUTES,
+                                        { shouldDirty: true }
+                                      );
+                                    }
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                          </div>
+
+                          <FormField
+                            control={form.control}
+                            name="recordSettings.autoDelete.delayMinutes"
+                            render={({ field: delayField }) => (
+                              <FormItem className="min-w-0">
+                                <FormLabel className="text-sm">删除时间</FormLabel>
+                                <Select
+                                  value={String(
+                                    delayField.value ??
+                                      DEFAULT_DELETE_DELAY_MINUTES
+                                  )}
+                                  onValueChange={value =>
+                                    delayField.onChange(Number(value))
+                                  }
+                                  disabled={!autoDeleteEnabled}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="选择删除时间" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {DELETE_DELAY_OPTIONS.map(option => (
+                                      <SelectItem
+                                        key={option.value}
+                                        value={String(option.value)}
+                                      >
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="submission" className="min-w-0 space-y-4">
+              <TabsContent value="submission" className="min-w-0 space-y-3">
                 <div className="space-y-1">
                   <h3 className="text-sm font-medium">投稿设置</h3>
                   <p className="text-xs text-muted-foreground">
@@ -901,33 +1008,60 @@ export function StreamerFormDialog({
                   </p>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="uploadSettings.autoUpload"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-sm">启用投稿</FormLabel>
-                        <FormDescription className="text-xs">
-                          录制完成后自动投稿
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-	                          checked={Boolean(field.value)}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.autoUpload"
+                    render={({ field }) => (
+                      <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3 sm:col-span-1">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-sm">启用投稿</FormLabel>
+                          <FormDescription className="text-xs">
+                            录制完成后自动投稿
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={Boolean(field.value)}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.collection.autoAdd"
+                    render={({ field }) => (
+                      <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3 sm:col-span-1">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-sm">加入合集</FormLabel>
+                          <FormDescription className="text-xs">
+                            投稿后自动归档
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={Boolean(field.value)}
+                            onCheckedChange={checked => {
+                              if (checked) {
+                                field.onChange(true);
+                                return;
+                              }
+                              clearCollectionSelection();
+                            }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
                   <FormField
                     control={form.control}
                     name="uploadSettings.rhythm.mode"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="sm:col-span-1">
                         <FormLabel>投稿节奏</FormLabel>
                         <Select
                           value={field.value || 'complete'}
@@ -957,7 +1091,7 @@ export function StreamerFormDialog({
                       control={form.control}
                       name="uploadSettings.rhythm.intervalMinutes"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="sm:col-span-1">
                           <FormLabel>投稿间隔（分钟）</FormLabel>
                           <FormControl>
                             <Input
@@ -977,258 +1111,230 @@ export function StreamerFormDialog({
                       )}
                     />
                   )}
-                </div>
 
-                <FormField
-                  control={form.control}
-                  name="uploadSettings.title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>视频标题</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="支持模板变量: {主播名}, {房间名}, {日期}, {时间}"
-                          {...field}
-                          value={field.value || ''}
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        留空时使用系统默认模板。可用变量：
-                        {` {主播名} `}
-                        、{`{房间名}`}（录制开始时房间名）、{`{日期}`}、
-                        {`{时间}`}。例如：
-                        {` {主播名}的{房间名}直播录像 {日期} {时间}`}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="uploadSettings.humanType2"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>投稿分区</FormLabel>
-                      <FormControl>
-                        <PartitionMenu
-                          partitions={partitions}
-                          value={field.value || DEFAULT_BILIBILI_HUMAN_TYPE2}
-                          onChange={field.onChange}
-                          disabled={loadingPartitions}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="uploadSettings.collection.autoAdd"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-sm">加入投稿合集</FormLabel>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={Boolean(field.value)}
-                          onCheckedChange={checked => {
-                            if (checked) {
-                              field.onChange(true);
-                              return;
-                            }
-                            clearCollectionSelection();
-                          }}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="uploadSettings.collection.sectionId"
-                  render={() => (
-                    <FormItem>
-                      <FormLabel>投稿合集</FormLabel>
-                      <div className="flex min-w-0 flex-wrap gap-2">
-                        <div className="min-w-[12rem] flex-1">
-                          <Select
-                            value={selectedCollectionValue}
-                            onValueChange={handleSelectCollection}
-                            disabled={!collectionAutoAdd || loadingSeasons}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full min-w-0">
-                                <SelectValue placeholder="选择投稿合集" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value={COLLECTION_NONE_VALUE}>
-                                不加入合集
-                              </SelectItem>
-                              {collectionOptions.map(option => (
-                                <SelectItem
-                                  key={option.value}
-                                  value={option.value}
-                                >
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="shrink-0"
-                          aria-label="刷新投稿合集"
-                          onClick={() => loadSeasons({ refresh: true })}
-                          disabled={loadingSeasons}
-                        >
-                          {loadingSeasons ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="shrink-0"
-                          onClick={() => {
-                            const streamerName = form.getValues('name').trim();
-                            setNewCollectionTitle(
-                              newCollectionTitle ||
-                                (streamerName ? `${streamerName}直播录像` : '')
-                            );
-                            setShowCollectionCreator(value => !value);
-                          }}
-                        >
-                          <Plus className="mr-2 h-4 w-4" />
-                          新建
-                        </Button>
-                      </div>
-                      {showCollectionCreator && (
-                        <div className="mt-3 space-y-3 rounded-lg border p-3">
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.title"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>视频标题</FormLabel>
+                        <FormControl>
                           <Input
-                            placeholder="合集标题"
-                            value={newCollectionTitle}
-                            onChange={event =>
-                              setNewCollectionTitle(event.target.value)
-                            }
+                            placeholder="支持模板变量: {主播名}, {房间名}, {日期}, {时间}"
+                            {...field}
+                            value={field.value || ''}
                           />
-                          <Textarea
-                            placeholder="合集简介"
-                            className="resize-none"
-                            rows={2}
-                            value={newCollectionDesc}
-                            onChange={event =>
-                              setNewCollectionDesc(event.target.value)
-                            }
-                          />
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setShowCollectionCreator(false)}
-                              disabled={creatingSeason}
-                            >
-                              取消
-                            </Button>
-                            <Button
-                              type="button"
-                              onClick={handleCreateCollection}
-                              disabled={creatingSeason}
-                            >
-                              {creatingSeason && (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              )}
-                              创建并绑定
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          变量：{`{主播名}`}、{`{房间名}`}、{`{日期}`}、{`{时间}`}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="uploadSettings.tags"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>标签</FormLabel>
-                      <div className="space-y-2">
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.humanType2"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>投稿分区</FormLabel>
+                        <FormControl>
+                          <PartitionMenu
+                            partitions={partitions}
+                            value={field.value || DEFAULT_BILIBILI_HUMAN_TYPE2}
+                            onChange={field.onChange}
+                            disabled={loadingPartitions}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.collection.sectionId"
+                    render={() => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>投稿合集</FormLabel>
                         <div className="flex min-w-0 gap-2">
-                          <Input
-                            className="min-w-0"
-                            placeholder="输入标签"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleAddTag();
-                              }
-                            }}
-                          />
+                          <div className="min-w-0 flex-1">
+                            <Select
+                              value={selectedCollectionValue}
+                              onValueChange={handleSelectCollection}
+                              disabled={!collectionAutoAdd || loadingSeasons}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="w-full min-w-0">
+                                  <SelectValue placeholder="选择投稿合集" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value={COLLECTION_NONE_VALUE}>
+                                  不加入合集
+                                </SelectItem>
+                                {collectionOptions.map(option => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <Button
                             type="button"
-                            variant="secondary"
+                            variant="outline"
                             size="icon"
-                            onClick={handleAddTag}
-                            disabled={!tagInput.trim()}
+                            className="shrink-0"
+                            aria-label="刷新投稿合集"
+                            onClick={() => loadSeasons({ refresh: true })}
+                            disabled={loadingSeasons}
                           >
-                            <X className="h-4 w-4 rotate-45" />
+                            {loadingSeasons ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="shrink-0"
+                            onClick={() => {
+                              const streamerName = form.getValues('name').trim();
+                              setNewCollectionTitle(
+                                newCollectionTitle ||
+                                  (streamerName ? `${streamerName}直播录像` : '')
+                              );
+                              setShowCollectionCreator(value => !value);
+                            }}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            新建
                           </Button>
                         </div>
-                        <div className="flex flex-wrap gap-1 min-h-[28px]">
-                          {(field.value || []).map((tag) => (
-                            <Badge
-                              key={tag}
-                              variant="secondary"
-                              className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
-                              onClick={() => handleRemoveTag(tag)}
-                            >
-                              {tag}
-                              <X className="ml-1 h-3 w-3" />
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        {showCollectionCreator && (
+                          <div className="mt-2 grid gap-2 rounded-lg border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                            <Input
+                              placeholder="合集标题"
+                              value={newCollectionTitle}
+                              onChange={event =>
+                                setNewCollectionTitle(event.target.value)
+                              }
+                            />
+                            <Textarea
+                              placeholder="合集简介"
+                              className="min-h-9 resize-none"
+                              rows={1}
+                              value={newCollectionDesc}
+                              onChange={event =>
+                                setNewCollectionDesc(event.target.value)
+                              }
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowCollectionCreator(false)}
+                                disabled={creatingSeason}
+                              >
+                                取消
+                              </Button>
+                              <Button
+                                type="button"
+                                onClick={handleCreateCollection}
+                                disabled={creatingSeason}
+                              >
+                                {creatingSeason && (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                )}
+                                创建并绑定
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="uploadSettings.description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>视频简介</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="视频简介内容"
-                          className="resize-none"
-                          rows={3}
-                          {...field}
-                          value={field.value || ''}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.tags"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>标签</FormLabel>
+                        <div className="space-y-2">
+                          <div className="flex min-w-0 gap-2">
+                            <Input
+                              className="min-w-0"
+                              placeholder="输入标签"
+                              value={tagInput}
+                              onChange={(e) => setTagInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddTag();
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="icon"
+                              onClick={handleAddTag}
+                              disabled={!tagInput.trim()}
+                            >
+                              <X className="h-4 w-4 rotate-45" />
+                            </Button>
+                          </div>
+                          <div className="flex min-h-[28px] flex-wrap gap-1">
+                            {(field.value || []).map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => handleRemoveTag(tag)}
+                              >
+                                {tag}
+                                <X className="ml-1 h-3 w-3" />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.description"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-4">
+                        <FormLabel>视频简介</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="视频简介内容"
+                            className="resize-none"
+                            rows={2}
+                            {...field}
+                            value={field.value || ''}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </TabsContent>
             </Tabs>
 
-            <DialogFooter className="mt-6">
+            <DialogFooter className="mt-3">
               <Button
                 type="button"
                 variant="outline"

@@ -3,6 +3,16 @@
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { PlatformIcon } from '@/components/shared/platform-icon';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -24,12 +34,12 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import {
-  DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenu,
 } from '@/components/ui/dropdown-menu';
-import { useJobBrowse, useJobStreamers, useJobVideos } from '@/hooks';
+import { useDeleteJob, useJobBrowse, useJobStreamers, useJobVideos } from '@/hooks';
 import { formatDuration, formatTime } from '@/lib/format';
 import type { BrowsedJob, BilibiliSubmission } from '@/types';
 import { format } from 'date-fns';
@@ -42,6 +52,7 @@ import {
   LayoutGrid,
   List,
   MoreVertical,
+  Trash2,
   Upload,
   X,
 } from 'lucide-react';
@@ -55,6 +66,8 @@ export default function ContentPage() {
   const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
   const [submitJob, setSubmitJob] = useState<BrowsedJob | null>(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [deleteJob, setDeleteJob] = useState<BrowsedJob | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'cards' | 'list'>('cards');
 
   // Filters (actual values used for API requests)
@@ -79,6 +92,7 @@ export default function ContentPage() {
     minSegmentCount: segmentFilterEnabled ? minSegmentCount : undefined,
   });
   const { data: jobVideos, isLoading: videosLoading } = useJobVideos(selectedJobId);
+  const deleteMutation = useDeleteJob();
 
   // Sync temp dates when popover opens
   useEffect(() => {
@@ -148,6 +162,21 @@ export default function ContentPage() {
   const openSubmitDialog = (job: BrowsedJob) => {
     setSubmitJob(job);
     setSubmitDialogOpen(true);
+  };
+
+  const openDeleteDialog = (job: BrowsedJob) => {
+    setDeleteJob(job);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteJob) {
+      return;
+    }
+
+    await deleteMutation.mutateAsync(deleteJob.id);
+    setDeleteDialogOpen(false);
+    setDeleteJob(null);
   };
 
   // Handle download
@@ -353,6 +382,7 @@ export default function ContentPage() {
                       }}
                       onSubmit={() => openSubmitDialog(job)}
                       onDownload={() => handleDownload(job)}
+                      onDelete={() => openDeleteDialog(job)}
                     />
                   ))}
                 </div>
@@ -365,6 +395,7 @@ export default function ContentPage() {
                   }}
                   onSubmit={openSubmitDialog}
                   onDownload={handleDownload}
+                  onDelete={openDeleteDialog}
                 />
               )}
             </div>
@@ -391,6 +422,29 @@ export default function ContentPage() {
         job={submitJob}
         onSuccess={handleSubmitSuccess}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除录制内容</AlertDialogTitle>
+            <AlertDialogDescription>
+              会删除这次录制在 S3 中的原始视频分片、合并视频、弹幕和文本导出文件。此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -401,6 +455,7 @@ interface JobCardProps {
   onPlay: () => void;
   onSubmit: () => void;
   onDownload: () => void;
+  onDelete: () => void;
 }
 
 function PlatformCoverPlaceholder({ platform }: { platform: BrowsedJob['platform'] }) {
@@ -428,9 +483,10 @@ interface JobTableProps {
   onPlay: (job: BrowsedJob) => void;
   onSubmit: (job: BrowsedJob) => void;
   onDownload: (job: BrowsedJob) => void;
+  onDelete: (job: BrowsedJob) => void;
 }
 
-function JobTable({ jobs, onPlay, onSubmit, onDownload }: JobTableProps) {
+function JobTable({ jobs, onPlay, onSubmit, onDownload, onDelete }: JobTableProps) {
   return (
     <Table>
       <TableHeader>
@@ -484,6 +540,13 @@ function JobTable({ jobs, onPlay, onSubmit, onDownload }: JobTableProps) {
                     <Download className="h-4 w-4 mr-2" />
                     下载
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => onDelete(job)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    删除
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </TableCell>
@@ -504,7 +567,7 @@ function formatPlatformName(platform: BrowsedJob['platform']) {
   return platformNames[platform];
 }
 
-function JobCard({ job, onPlay, onSubmit, onDownload }: JobCardProps) {
+function JobCard({ job, onPlay, onSubmit, onDownload, onDelete }: JobCardProps) {
   const [coverLoadFailed, setCoverLoadFailed] = useState(false);
   const hasCover = Boolean(job.coverUrl && !coverLoadFailed);
 
@@ -574,6 +637,10 @@ function JobCard({ job, onPlay, onSubmit, onDownload }: JobCardProps) {
               <DropdownMenuItem onClick={onDownload}>
                 <Download className="h-4 w-4 mr-2" />
                 下载
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                删除
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

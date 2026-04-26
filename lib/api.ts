@@ -108,7 +108,7 @@ export const api = {
   retryJob: async (id: string) =>
     (await client.post<{ newJobId: string }>(`/api/jobs/${id}/retry`)).data,
   deleteJob: async (id: string) =>
-    (await client.post<{ success: boolean; message: string }>(`/api/jobs/${id}/delete`)).data,
+    (await client.post<{ success: boolean; message: string; deletedKeys?: number }>(`/api/jobs/${id}/delete`)).data,
 
   // Content browsing
   getJobBrowse: async (filters?: { streamerName?: string; startDate?: string; endDate?: string; minSegmentCount?: number }) => {

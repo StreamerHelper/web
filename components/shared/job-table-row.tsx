@@ -1,13 +1,11 @@
-import type { Job } from '@/types';
+import type { Job, JobSubmissionSummary } from '@/types';
 import { PlatformIcon } from './platform-icon';
 import { QualityBadge } from './quality-badge';
 import { StatusBadge } from './status-badge';
-import { formatDuration, formatRelativeTime } from '@/lib/format';
-import { ExternalLink } from 'lucide-react';
-import {
-  TableCell,
-  TableRow,
-} from '@/components/ui/table';
+import { SubmissionStatusBadge } from './submission-status-badge';
+import { formatDateTime, formatDuration } from '@/lib/format';
+import { Badge } from '@/components/ui/badge';
+import { TableCell, TableRow } from '@/components/ui/table';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreVertical, Eye, Square, RotateCw, Trash2 } from 'lucide-react';
+import { ExternalLink, MoreVertical, Eye, Square, RotateCw, Trash2 } from 'lucide-react';
 
 const PLATFORM_ROOM_URLS: Record<string, (roomId: string) => string> = {
   douyin: (roomId) => `https://live.douyin.com/${roomId}`,
@@ -78,7 +76,7 @@ export function JobTableRow({ job, onClick, onStop, onRetry, onDelete }: JobTabl
         </div>
       </TableCell>
       <TableCell className="text-muted-foreground py-2 px-3">
-        {formatRelativeTime(job.startTime)}
+        {formatDateTime(job.startTime)}
       </TableCell>
       <TableCell className="py-2 px-3">
         {job.status === 'recording' ? (
@@ -88,6 +86,9 @@ export function JobTableRow({ job, onClick, onStop, onRetry, onDelete }: JobTabl
         ) : (
           <span className="text-muted-foreground">-</span>
         )}
+      </TableCell>
+      <TableCell className="max-w-[280px] py-2 px-3">
+        <SubmissionSummaryCell submissions={job.submissions} />
       </TableCell>
       <TableCell className="text-right py-2 px-3">
         <DropdownMenu>
@@ -144,5 +145,52 @@ export function JobTableRow({ job, onClick, onStop, onRetry, onDelete }: JobTabl
         </DropdownMenu>
       </TableCell>
     </TableRow>
+  );
+}
+
+function SubmissionSummaryCell({
+  submissions,
+}: {
+  submissions?: JobSubmissionSummary[];
+}) {
+  if (!submissions || submissions.length === 0) {
+    return <span className="text-sm text-muted-foreground">未投稿</span>;
+  }
+
+  const latest = submissions[0];
+  const progress =
+    latest.totalParts > 0
+      ? `${latest.completedParts}/${latest.totalParts}`
+      : '-';
+
+  return (
+    <div className="min-w-0 space-y-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <SubmissionStatusBadge status={latest.status} />
+        {submissions.length > 1 && (
+          <Badge variant="outline" className="font-normal">
+            +{submissions.length - 1}
+          </Badge>
+        )}
+      </div>
+      <div className="truncate text-sm font-medium" title={latest.title}>
+        {latest.title}
+      </div>
+      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        <span>分P {progress}</span>
+        {latest.bvid && (
+          <a
+            href={`https://www.bilibili.com/video/${latest.bvid}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-w-0 items-center gap-1 text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink className="h-3 w-3 shrink-0" />
+            <span className="truncate">{latest.bvid}</span>
+          </a>
+        )}
+      </div>
+    </div>
   );
 }

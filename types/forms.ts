@@ -2,6 +2,7 @@ import type {
   BilibiliCollectionBinding,
   JobStatus,
   Platform,
+  RecordingAutoDeleteSettings,
   RecordingQuality,
 } from './entities';
 
@@ -31,6 +32,7 @@ export interface StreamerFormValues {
   recordSettings: {
     quality?: RecordingQuality;
     detectHighlights?: boolean;
+    autoDelete?: RecordingAutoDeleteSettings;
   };
   uploadSettings?: UploadSettings;
 }

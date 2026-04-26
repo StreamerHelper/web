@@ -149,8 +149,9 @@ export default function StreamersPage() {
     coverPath: streamer.coverPath ?? null,
     coverUrl: streamer.coverUrl ?? null,
     recordSettings: {
-      quality: streamer.recordSettings?.quality,
+      quality: streamer.recordSettings?.quality ?? 'high',
       detectHighlights: streamer.recordSettings?.detectHighlights ?? false,
+      autoDelete: streamer.recordSettings?.autoDelete,
     },
     uploadSettings: {
       autoUpload: streamer.uploadSettings?.autoUpload ?? true,
@@ -407,7 +408,7 @@ export default function StreamersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <QualityBadge quality={streamer.recordSettings?.quality} />
+                        <QualityBadge quality={streamer.recordSettings?.quality ?? 'high'} />
                         <div className="text-xs text-muted-foreground">
                           {streamer.recordSettings?.detectHighlights ? '启用高光检测' : '未启用高光检测'}
                         </div>

@@ -1,7 +1,26 @@
 export type Platform = 'bilibili' | 'huya' | 'douyu' | 'douyin';
 export type RecordingQuality = 'low' | 'medium' | 'high';
 
+export interface RecordingAutoDeleteSettings {
+  enabled?: boolean;
+  delayMinutes?: number;
+}
+
 export type JobStatus = 'pending' | 'recording' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'stopping';
+
+export interface JobSubmissionSummary {
+  id: string;
+  jobId: string;
+  title: string;
+  status: SubmissionStatus;
+  bvid?: string | null;
+  avid?: number | null;
+  totalParts: number;
+  completedParts: number;
+  lastError?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // Job for browse API (content browsing)
 export interface BrowsedJob {
@@ -59,6 +78,7 @@ export interface Streamer {
   recordSettings?: {
     quality?: RecordingQuality;
     detectHighlights?: boolean;
+    autoDelete?: RecordingAutoDeleteSettings;
   };
   uploadSettings?: {
     autoUpload?: boolean;
@@ -93,6 +113,7 @@ export interface StreamStatus {
 
 export interface Job {
   id: string;
+  jobId: string;
   streamerId: string;
   streamerName: string;
   roomId: string;
@@ -108,6 +129,7 @@ export interface Job {
   startTime: Date | null;
   endTime: Date | null;
   errorMessage: string | null;
+  submissions?: JobSubmissionSummary[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,6 +141,13 @@ export interface JobMetadata {
   effectiveQuality?: RecordingQuality;
   qualityApplied?: boolean;
   qualityNote?: string;
+  autoDelete?: RecordingAutoDeleteSettings;
+  storageDeleteScheduledAt?: string;
+  storageDeleteDelayMinutes?: number;
+  storageDeleted?: boolean;
+  storageDeletedAt?: string;
+  storageDeletedKeys?: string[];
+  storageDeleteReason?: string;
   ffmpegRequestedQuality?: RecordingQuality;
   resolution?: string;
   bitrate?: number;

@@ -5,13 +5,25 @@ import { toast } from 'sonner';
 import { api } from '@/lib';
 import type { JobFilterValues, Job, Platform } from '@/types';
 
+const ACTIVE_SUBMISSION_STATUSES = ['pending', 'uploading', 'submitting'];
+
+function hasActiveSubmission(job?: Job | null): boolean {
+  return Boolean(
+    job?.submissions?.some(submission =>
+      ACTIVE_SUBMISSION_STATUSES.includes(submission.status)
+    )
+  );
+}
+
 export function useJobs(filters?: JobFilterValues) {
   return useQuery({
     queryKey: ['jobs', filters],
     queryFn: () => api.getJobs(filters),
     refetchInterval: (query) => {
-      const hasRecording = query.state.data?.data?.some(j => j.status === 'recording');
-      return hasRecording ? 5000 : false;
+      const needsRefresh = query.state.data?.data?.some(
+        job => job.status === 'recording' || hasActiveSubmission(job)
+      );
+      return needsRefresh ? 5000 : false;
     },
     retry: 1,
     retryDelay: 1000,
@@ -35,7 +47,9 @@ export function useJob(id: string) {
     enabled: !!id,
     refetchInterval: (query) => {
       const job = query.state.data;
-      return job?.status === 'recording' ? 5000 : false;
+      return job?.status === 'recording' || hasActiveSubmission(job)
+        ? 5000
+        : false;
     },
     retry: 1,
     retryDelay: 1000,
@@ -116,7 +130,8 @@ export function useDeleteJob() {
     mutationFn: (id: string) => api.deleteJob(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      toast.success('任务已删除');
+      queryClient.invalidateQueries({ queryKey: ['jobs', 'browse'] });
+      toast.success('视频已删除');
     },
   });
 }
