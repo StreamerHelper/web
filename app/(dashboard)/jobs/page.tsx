@@ -54,7 +54,7 @@ export default function JobsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [jobToAction, setJobToAction] = useState<Job | null>(null);
 
-  const { data: jobsData, isLoading, refetch } = useJobs(
+  const { data: jobsData, isLoading } = useJobs(
     statusFilter !== 'all'
       ? { status: statusFilter as JobStatus, pageSize: 1000 }
       : { pageSize: 1000 }
@@ -163,7 +163,7 @@ export default function JobsPage() {
 
       {/* Job Detail Dialog */}
       <Dialog open={!!activeSelectedJob} onOpenChange={() => setSelectedJob(null)}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-[900px] max-h-[calc(100svh-1.5rem)] gap-5 overflow-hidden p-6 sm:min-h-[640px]">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[1040px] max-h-[calc(100svh-1.5rem)] gap-5 overflow-hidden p-6 sm:min-h-[640px]">
           {activeSelectedJob && (
             <>
               <DialogHeader className="min-w-0 pr-8">
@@ -181,12 +181,14 @@ export default function JobsPage() {
 
               <div className="flex min-h-0 min-w-0 flex-col gap-4">
                 <CompactSection title="任务概览">
-                  <div className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-3 md:grid-cols-4">
+                  <div className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
                     <CompactField
                       label="任务 ID"
                       title={activeSelectedJob.id}
                       mono
-                      className="col-span-2"
+                      className="sm:col-span-2 md:col-span-3"
+                      truncateValue={false}
+                      valueClassName="break-all leading-snug"
                     >
                       {activeSelectedJob.id}
                     </CompactField>
@@ -199,7 +201,9 @@ export default function JobsPage() {
                     <CompactField
                       label="创建时间"
                       title={formatDateTime(activeSelectedJob.createdAt)}
-                      className="col-span-2"
+                      className="sm:col-span-2 md:col-span-3"
+                      truncateValue={false}
+                      valueClassName="whitespace-nowrap"
                     >
                       {formatDateTime(activeSelectedJob.createdAt)}
                     </CompactField>
@@ -207,10 +211,13 @@ export default function JobsPage() {
                 </CompactSection>
 
                 <CompactSection title="录制信息">
-                  <div className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-3 md:grid-cols-4">
+                  <div className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
                     <CompactField
                       label="开始时间"
                       title={formatDateTime(activeSelectedJob.startTime)}
+                      className="md:col-span-2"
+                      truncateValue={false}
+                      valueClassName="whitespace-nowrap"
                     >
                       {formatDateTime(activeSelectedJob.startTime)}
                     </CompactField>
@@ -221,6 +228,9 @@ export default function JobsPage() {
                           ? formatDateTime(activeSelectedJob.endTime)
                           : '-'
                       }
+                      className="md:col-span-2"
+                      truncateValue={false}
+                      valueClassName="whitespace-nowrap"
                     >
                       {activeSelectedJob.endTime
                         ? formatDateTime(activeSelectedJob.endTime)
@@ -424,6 +434,7 @@ function CompactField({
   title,
   className = '',
   truncateValue = true,
+  valueClassName = '',
 }: {
   label: string;
   children: ReactNode;
@@ -431,6 +442,7 @@ function CompactField({
   title?: string;
   className?: string;
   truncateValue?: boolean;
+  valueClassName?: string;
 }) {
   return (
     <div className={cn('min-w-0', className)}>
@@ -439,7 +451,8 @@ function CompactField({
         className={cn(
           'mt-0.5 min-w-0 text-[15px]',
           truncateValue && 'truncate',
-          mono && 'font-mono text-xs'
+          mono && 'font-mono text-xs',
+          valueClassName
         )}
         title={title}
       >

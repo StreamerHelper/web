@@ -258,7 +258,7 @@ export default function DashboardPage() {
 
       {/* Job Detail Dialog */}
       <Dialog open={!!selectedJob} onOpenChange={() => setSelectedJob(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-[900px] max-h-[80vh] overflow-y-auto">
           {selectedJob && (
             <>
               <DialogHeader>
@@ -273,18 +273,18 @@ export default function DashboardPage() {
                 {/* Basic Info */}
                 <div>
                   <h3 className="text-sm font-medium mb-2">基本信息</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">任务 ID:</span>
-                      <span className="ml-2 font-mono text-xs">{selectedJob.id.slice(0, 8)}...</span>
+                  <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <div className="text-muted-foreground">任务 ID</div>
+                      <div className="mt-1 break-all font-mono text-xs leading-snug">{selectedJob.id}</div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">房间号:</span>
-                      <span className="ml-2">{selectedJob.roomId}</span>
+                      <div className="text-muted-foreground">房间号</div>
+                      <div className="mt-1">{selectedJob.roomId}</div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">创建时间:</span>
-                      <span className="ml-2">{formatDateTime(selectedJob.createdAt)}</span>
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground">创建时间</div>
+                      <div className="mt-1 whitespace-nowrap">{formatDateTime(selectedJob.createdAt)}</div>
                     </div>
                   </div>
                 </div>
@@ -294,24 +294,24 @@ export default function DashboardPage() {
                 {/* Recording Info */}
                 <div>
                   <h3 className="text-sm font-medium mb-2">录制信息</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">开始时间:</span>
-                      <span className="ml-2">{formatDateTime(selectedJob.startTime)}</span>
+                  <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground">开始时间</div>
+                      <div className="mt-1 whitespace-nowrap">{formatDateTime(selectedJob.startTime)}</div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">结束时间:</span>
-                      <span className="ml-2">
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground">结束时间</div>
+                      <div className="mt-1 whitespace-nowrap">
                         {selectedJob.endTime ? formatDateTime(selectedJob.endTime) : '-'}
-                      </span>
+                      </div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">录制时长:</span>
-                      <span className="ml-2">{formatDuration(selectedJob.duration)}</span>
+                      <div className="text-muted-foreground">录制时长</div>
+                      <div className="mt-1">{formatDuration(selectedJob.duration)}</div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">视频片段:</span>
-                      <span className="ml-2">{selectedJob.segmentCount > 0 ? `${selectedJob.segmentCount} 个` : '-'}</span>
+                      <div className="text-muted-foreground">视频片段</div>
+                      <div className="mt-1">{selectedJob.segmentCount > 0 ? `${selectedJob.segmentCount} 个` : '-'}</div>
                     </div>
                   </div>
                 </div>
