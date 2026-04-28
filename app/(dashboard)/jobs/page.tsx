@@ -175,7 +175,12 @@ export default function JobsPage() {
                   >
                     {activeSelectedJob.streamerName}
                   </span>
-                  <StatusBadge status={activeSelectedJob.status} />
+                  <StatusBadge
+                    status={activeSelectedJob.status}
+                    isRecovering={
+                      activeSelectedJob.metadata?.streamRecoveryInProgress
+                    }
+                  />
                 </DialogTitle>
               </DialogHeader>
 
@@ -196,7 +201,12 @@ export default function JobsPage() {
                       {activeSelectedJob.roomId}
                     </CompactField>
                     <CompactField label="状态">
-                      <StatusBadge status={activeSelectedJob.status} />
+                      <StatusBadge
+                        status={activeSelectedJob.status}
+                        isRecovering={
+                          activeSelectedJob.metadata?.streamRecoveryInProgress
+                        }
+                      />
                     </CompactField>
                     <CompactField
                       label="创建时间"
@@ -246,6 +256,56 @@ export default function JobsPage() {
                     </CompactField>
                   </div>
                 </CompactSection>
+
+                {hasRecoveryMetadata(activeSelectedJob) && (
+                  <CompactSection title="恢复状态">
+                    <div className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 md:grid-cols-4">
+                      <CompactField label="恢复原因">
+                        {formatRecoveryReason(
+                          activeSelectedJob.metadata?.streamRecoveryReason
+                        )}
+                      </CompactField>
+                      <CompactField label="重试次数">
+                        {activeSelectedJob.metadata?.streamRecoveryAttempt ?? '-'}
+                      </CompactField>
+                      <CompactField
+                        label="最近重试"
+                        title={formatDateTime(
+                          activeSelectedJob.metadata?.streamRecoveryLastAt
+                        )}
+                        truncateValue={false}
+                        valueClassName="whitespace-nowrap"
+                      >
+                        {formatDateTime(
+                          activeSelectedJob.metadata?.streamRecoveryLastAt
+                        )}
+                      </CompactField>
+                      <CompactField
+                        label="下次重试"
+                        title={formatDateTime(
+                          activeSelectedJob.metadata?.streamRecoveryNextRetryAt
+                        )}
+                        truncateValue={false}
+                        valueClassName="whitespace-nowrap"
+                      >
+                        {formatDateTime(
+                          activeSelectedJob.metadata?.streamRecoveryNextRetryAt
+                        )}
+                      </CompactField>
+                      {activeSelectedJob.metadata?.streamRecoveryLastError && (
+                        <CompactField
+                          label="恢复错误"
+                          title={
+                            activeSelectedJob.metadata.streamRecoveryLastError
+                          }
+                          className="sm:col-span-2 md:col-span-4"
+                        >
+                          {activeSelectedJob.metadata.streamRecoveryLastError}
+                        </CompactField>
+                      )}
+                    </div>
+                  </CompactSection>
+                )}
 
                 <CompactSection
                   title="投稿信息"
@@ -403,6 +463,26 @@ function hasVisibleMediaMetadata(job: Job): job is Job & {
         metadata.codec ||
         metadata.qualityNote)
   );
+}
+
+function hasRecoveryMetadata(job: Job): boolean {
+  const metadata = job.metadata;
+  return Boolean(
+    metadata &&
+      (metadata.streamRecoveryInProgress ||
+        metadata.streamRecoveryAttempt ||
+        metadata.streamRecoveryReason ||
+        metadata.streamRecoveryLastError)
+  );
+}
+
+function formatRecoveryReason(reason?: string): string {
+  const labels: Record<string, string> = {
+    ffmpeg_exit: 'FFmpeg 退出',
+    heartbeat_timeout: 'FFmpeg 心跳超时',
+    stream_refresh_failed: '刷新直播流失败',
+  };
+  return reason ? labels[reason] || reason : '-';
 }
 
 function CompactSection({

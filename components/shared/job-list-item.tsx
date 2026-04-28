@@ -59,7 +59,10 @@ export function JobListItem({ job, onClick }: JobListItemProps) {
         </div>
 
         {/* Status Badge */}
-        <StatusBadge status={job.status} />
+        <StatusBadge
+          status={job.status}
+          isRecovering={job.metadata?.streamRecoveryInProgress}
+        />
       </div>
     </div>
   );

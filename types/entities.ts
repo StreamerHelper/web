@@ -158,6 +158,15 @@ export interface JobMetadata {
     total_gifts: number;
     unique_viewers: number;
   };
+  lastFFmpegOutputTime?: number;
+  recordedSegments?: number;
+  lastSegmentTime?: number;
+  streamRecoveryInProgress?: boolean;
+  streamRecoveryAttempt?: number;
+  streamRecoveryReason?: string;
+  streamRecoveryLastAt?: string;
+  streamRecoveryNextRetryAt?: string;
+  streamRecoveryLastError?: string;
 }
 
 export interface Highlight {

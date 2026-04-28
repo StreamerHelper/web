@@ -17,6 +17,10 @@ interface UseLiveStatusOptions {
   pollInterval?: number;
 }
 
+interface CheckSingleOptions {
+  suppressError?: boolean;
+}
+
 export function useLiveStatus(
   streamers: Streamer[],
   options: UseLiveStatusOptions = {}
@@ -26,10 +30,15 @@ export function useLiveStatus(
   const [checking, setChecking] = useState<Set<string>>(new Set());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const checkSingle = useCallback(async (streamer: Streamer): Promise<StreamStatus | null> => {
+  const checkSingle = useCallback(async (
+    streamer: Streamer,
+    checkOptions: CheckSingleOptions = {}
+  ): Promise<StreamStatus | null> => {
     setChecking(prev => new Set(prev).add(streamer.streamerId));
     try {
-      const status = await api.checkStreamStatus(streamer.id);
+      const status = await api.checkStreamStatus(streamer.id, {
+        silentError: checkOptions.suppressError,
+      });
       setLiveStatus(prev => ({
         ...prev,
         [streamer.streamerId]: {
@@ -39,8 +48,10 @@ export function useLiveStatus(
         },
       }));
       return status;
-    } catch {
-      // Silently fail for network errors
+    } catch (error) {
+      if (!checkOptions.suppressError) {
+        throw error;
+      }
       return null;
     } finally {
       setChecking(prev => {
@@ -53,7 +64,11 @@ export function useLiveStatus(
 
   const checkAll = useCallback(async () => {
     const activeStreamers = streamers.filter(s => s.isActive ?? false);
-    await Promise.all(activeStreamers.map(checkSingle));
+    await Promise.all(
+      activeStreamers.map(streamer =>
+        checkSingle(streamer, { suppressError: true })
+      )
+    );
   }, [streamers, checkSingle]);
 
   const getLiveStatus = useCallback((streamerId: string): boolean => {

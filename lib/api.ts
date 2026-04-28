@@ -27,6 +27,13 @@ import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import { API_CONFIG } from './constants';
 
+interface ApiErrorResponse {
+  message?: string;
+  error?: string;
+  code?: string;
+  platform?: string;
+}
+
 const client = axios.create({
   baseURL: API_CONFIG.baseURL,
   timeout: API_CONFIG.timeout,
@@ -46,13 +53,19 @@ client.interceptors.request.use(
 
 client.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<{ message?: string; error?: string }>) => {
+  (error: AxiosError<ApiErrorResponse>) => {
     const isNetworkError = !error.response && error.code;
     if (isNetworkError) {
       return Promise.reject(error);
     }
+    if ((error.config as { silentError?: boolean } | undefined)?.silentError) {
+      return Promise.reject(error);
+    }
     const message = error.response?.data?.error || error.response?.data?.message || error.message || '请求失败';
-    toast.error(message);
+    const detail = [error.response?.data?.platform, error.response?.data?.code]
+      .filter(Boolean)
+      .join(' / ');
+    toast.error(message, detail ? { description: detail } : undefined);
     return Promise.reject(error);
   }
 );
@@ -76,8 +89,12 @@ export const api = {
     (await client.put<Streamer>(`/api/streamers/${id}`, data)).data,
   deleteStreamer: async (id: string) =>
     (await client.post<{ success: boolean; message: string }>(`/api/streamers/${id}/delete`)).data,
-  checkStreamStatus: async (id: string) => {
-    const response = await client.post<{ streamer: Streamer; status: StreamStatus }>(`/api/streamers/${id}/check`);
+  checkStreamStatus: async (id: string, options?: { silentError?: boolean }) => {
+    const response = await client.post<{ streamer: Streamer; status: StreamStatus }>(
+      `/api/streamers/${id}/check`,
+      undefined,
+      { silentError: options?.silentError } as any
+    );
     return response.data.status;
   },
 

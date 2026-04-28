@@ -73,7 +73,7 @@ export function useDeleteStreamer() {
 
 export function useCheckStreamStatus() {
   return useMutation({
-    mutationFn: api.checkStreamStatus,
+    mutationFn: (id: string) => api.checkStreamStatus(id),
     onSuccess: (data: StreamStatus) => {
       if (data.isLive) {
         toast.success(`主播正在直播！`, {

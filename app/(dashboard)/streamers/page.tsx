@@ -109,7 +109,12 @@ export default function StreamersPage() {
   };
 
   const handleCheckLive = async (streamer: Streamer) => {
-    const result = await checkSingle(streamer);
+    let result: Awaited<ReturnType<typeof checkSingle>>;
+    try {
+      result = await checkSingle(streamer);
+    } catch {
+      return;
+    }
     if (result && result.isLive) {
       toast.success(`${streamer.name} 正在直播！`, {
         description: result.title,

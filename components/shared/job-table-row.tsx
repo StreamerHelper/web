@@ -53,7 +53,10 @@ export function JobTableRow({ job, onClick, onStop, onRetry, onDelete }: JobTabl
         <PlatformIcon platform={job.platform} />
       </TableCell>
       <TableCell className="py-2 px-3">
-        <StatusBadge status={job.status} />
+        <StatusBadge
+          status={job.status}
+          isRecovering={job.metadata?.streamRecoveryInProgress}
+        />
       </TableCell>
       <TableCell className="py-2 px-3">
         <div className="space-y-1">
