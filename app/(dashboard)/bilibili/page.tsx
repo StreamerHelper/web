@@ -24,7 +24,7 @@ import {
 import { api } from '@/lib/api';
 import { formatDateTime, formatDuration, formatFileSize } from '@/lib/format';
 import type { BilibiliSubmission, SubmissionPart, SubmissionStatus } from '@/types';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   ChevronDown,
@@ -33,12 +33,14 @@ import {
   Clock,
   ExternalLink,
   Loader2,
+  RotateCw,
   Send,
   Settings,
   Upload,
   XCircle,
 } from 'lucide-react';
 import { Fragment, useState } from 'react';
+import { toast } from 'sonner';
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: '等待中', icon: Clock, variant: 'secondary' },
@@ -52,6 +54,7 @@ export default function BilibiliPage() {
   const [authSidebarOpen, setAuthSidebarOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
+  const queryClient = useQueryClient();
   const pageSize = 20;
 
   // Fetch submissions
@@ -72,6 +75,16 @@ export default function BilibiliPage() {
   });
 
   const isLoggedIn = authStatus?.isAuthenticated && authStatus?.account;
+
+  const regenerateMutation = useMutation({
+    mutationFn: api.regenerateBilibiliSubmission,
+    onSuccess: (submission) => {
+      toast.success('稿件已重新生成', {
+        description: submission.bvid || undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ['bilibili', 'submissions'] });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -153,7 +166,15 @@ export default function BilibiliPage() {
           </CardContent>
         </Card>
       ) : (
-        <SubmissionTable submissions={data.items} />
+        <SubmissionTable
+          submissions={data.items}
+          regeneratingId={
+            regenerateMutation.isPending
+              ? regenerateMutation.variables
+              : undefined
+          }
+          onRegenerate={(id) => regenerateMutation.mutate(id)}
+        />
       )}
 
       {/* Pagination */}
@@ -188,9 +209,15 @@ export default function BilibiliPage() {
 
 interface SubmissionTableProps {
   submissions: BilibiliSubmission[];
+  regeneratingId?: string;
+  onRegenerate: (id: string) => void;
 }
 
-function SubmissionTable({ submissions }: SubmissionTableProps) {
+function SubmissionTable({
+  submissions,
+  regeneratingId,
+  onRegenerate,
+}: SubmissionTableProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const toggleExpanded = (id: string) => {
@@ -219,6 +246,7 @@ function SubmissionTable({ submissions }: SubmissionTableProps) {
           <TableHead className="min-w-[180px]">投稿合集</TableHead>
           <TableHead className="w-[160px]">B站稿件</TableHead>
           <TableHead className="min-w-[180px]">错误信息</TableHead>
+          <TableHead className="w-[120px]">操作</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -229,11 +257,13 @@ function SubmissionTable({ submissions }: SubmissionTableProps) {
               <SubmissionRow
                 submission={submission}
                 expanded={expanded}
+                isRegenerating={regeneratingId === submission.id}
                 onToggle={() => toggleExpanded(submission.id)}
+                onRegenerate={() => onRegenerate(submission.id)}
               />
               {expanded && (
                 <TableRow key={`${submission.id}-parts`} className="bg-muted/15 hover:bg-muted/15">
-                  <TableCell colSpan={8} className="p-3">
+                  <TableCell colSpan={9} className="p-3">
                     <SubmissionPartsTable submission={submission} />
                   </TableCell>
                 </TableRow>
@@ -249,15 +279,24 @@ function SubmissionTable({ submissions }: SubmissionTableProps) {
 interface SubmissionRowProps {
   submission: BilibiliSubmission;
   expanded: boolean;
+  isRegenerating: boolean;
   onToggle: () => void;
+  onRegenerate: () => void;
 }
 
-function SubmissionRow({ submission, expanded, onToggle }: SubmissionRowProps) {
+function SubmissionRow({
+  submission,
+  expanded,
+  isRegenerating,
+  onToggle,
+  onRegenerate,
+}: SubmissionRowProps) {
   const config = STATUS_CONFIG[submission.status];
   const StatusIcon = config.icon;
   const progress = submission.totalParts > 0
     ? Math.round((submission.completedParts / submission.totalParts) * 100)
     : 0;
+  const regenerateDisabledReason = getRegenerateDisabledReason(submission);
 
   return (
     <TableRow>
@@ -345,6 +384,23 @@ function SubmissionRow({ submission, expanded, onToggle }: SubmissionRowProps) {
         ) : (
           <span className="text-muted-foreground">-</span>
         )}
+      </TableCell>
+      <TableCell>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={Boolean(regenerateDisabledReason) || isRegenerating}
+          title={regenerateDisabledReason || '使用已上传的 B站分 P 文件重新生成稿件'}
+          onClick={onRegenerate}
+        >
+          {isRegenerating ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RotateCw className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          重新生成
+        </Button>
       </TableCell>
     </TableRow>
   );
@@ -458,4 +514,28 @@ function getPartStatus(status: string): {
   };
 
   return statusMap[status] || { label: status || '-', variant: 'secondary' };
+}
+
+function getRegenerateDisabledReason(
+  submission: BilibiliSubmission
+): string | undefined {
+  if (
+    submission.status === 'pending' ||
+    submission.status === 'uploading' ||
+    submission.status === 'submitting'
+  ) {
+    return '投稿处理中，暂时不能重新生成';
+  }
+
+  const parts = submission.parts || [];
+  if (parts.length === 0) {
+    return '缺少可复用的 B站分 P 信息';
+  }
+
+  const missingPart = parts.find(part => !part.filename || !part.cid);
+  if (missingPart) {
+    return `P${missingPart.index} 缺少 B站文件名或 CID`;
+  }
+
+  return undefined;
 }

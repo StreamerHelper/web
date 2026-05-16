@@ -180,6 +180,8 @@ export const api = {
     (await client.post<BilibiliSubmission>('/api/bilibili/submission', data)).data,
   getBilibiliSubmission: async (id: string) =>
     (await client.get<BilibiliSubmission>(`/api/bilibili/submission/${id}`)).data,
+  regenerateBilibiliSubmission: async (id: string) =>
+    (await client.post<BilibiliSubmission>(`/api/bilibili/submission/${id}/regenerate`)).data,
   getBilibiliSubmissions: async (params?: { page?: number; pageSize?: number; jobId?: string; status?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', String(params.page));
