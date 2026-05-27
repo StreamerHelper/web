@@ -1,9 +1,9 @@
 'use client';
 
 import { PageHeader } from '@/components/shared/page-header';
+import { LoginCredentialsSection } from '@/components/settings/login-credentials-section';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
@@ -60,6 +60,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <LoginCredentialsSection />
 
       <Card>
         <CardHeader>

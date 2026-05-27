@@ -342,6 +342,56 @@ export interface BilibiliPollResult {
   mid?: number;
 }
 
+// Douyin Authentication
+export interface DouyinAuthStatus {
+  isAuthenticated: boolean;
+  source?: 'database' | 'config';
+  cookieNames?: string[];
+  verifiedAt?: string | null;
+  updatedAt?: string;
+  lastValidationError?: string | null;
+}
+
+export interface DouyinCookieVerification {
+  ok: boolean;
+  cookieNames: string[];
+  verifiedAt?: string;
+  statusCode?: number;
+  captchaDetected?: boolean;
+  error?: string;
+}
+
+export type DouyinBrowserLoginState =
+  | 'initializing'
+  | 'waiting'
+  | 'authenticated'
+  | 'expired'
+  | 'failed'
+  | 'cancelled';
+
+export interface DouyinBrowserLoginStatus {
+  sessionId: string;
+  status: DouyinBrowserLoginState;
+  createdAt: string;
+  expiresAt: string;
+  updatedAt: string;
+  screenshotUpdatedAt?: string;
+  cookieNames?: string[];
+  verifiedAt?: string;
+  error?: string;
+}
+
+export interface SaveDouyinCookieRequest {
+  cookie: string;
+  roomId?: string;
+  verify?: boolean;
+}
+
+export interface SaveDouyinCookieResponse {
+  status: DouyinAuthStatus;
+  verification?: DouyinCookieVerification;
+}
+
 export interface BilibiliUploadResult {
   bvid: string;
   avid: string;

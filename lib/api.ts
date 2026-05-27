@@ -15,6 +15,11 @@ import type {
   BilibiliAuthStatus,
   BilibiliQRCode,
   BilibiliPollResult,
+  DouyinAuthStatus,
+  DouyinBrowserLoginStatus,
+  DouyinCookieVerification,
+  SaveDouyinCookieRequest,
+  SaveDouyinCookieResponse,
   BilibiliSubmission,
   BilibiliSubmissionsResponse,
   BilibiliPartitionsResponse,
@@ -174,6 +179,28 @@ export const api = {
     (await client.post<BilibiliPollResult>('/api/bilibili/auth/poll', { authCode })).data,
   logoutBilibili: async () =>
     (await client.post<{ success: boolean }>('/api/bilibili/auth/logout')).data,
+
+  // Douyin authentication
+  getDouyinAuthStatus: async () =>
+    (await client.get<DouyinAuthStatus>('/api/douyin/auth/status')).data,
+  saveDouyinCookie: async (data: SaveDouyinCookieRequest) =>
+    (await client.post<SaveDouyinCookieResponse>('/api/douyin/auth/cookie', data)).data,
+  verifyDouyinCookie: async (data?: { cookie?: string; roomId?: string }) =>
+    (await client.post<DouyinCookieVerification>('/api/douyin/auth/verify', data || {})).data,
+  startDouyinBrowserLogin: async (data?: { roomId?: string }) =>
+    (await client.post<DouyinBrowserLoginStatus>('/api/douyin/auth/browser-login', data || {})).data,
+  getDouyinBrowserLoginStatus: async (sessionId: string) =>
+    (await client.get<DouyinBrowserLoginStatus>(`/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}`)).data,
+  cancelDouyinBrowserLogin: async (sessionId: string) =>
+    (await client.post<{ success: boolean }>(`/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}/cancel`)).data,
+  getDouyinBrowserLoginScreenshotUrl: (sessionId: string, cacheKey?: string | number) => {
+    const path = `/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}/screenshot`;
+    const suffix = cacheKey === undefined ? '' : `?t=${encodeURIComponent(String(cacheKey))}`;
+    const baseURL = API_CONFIG.baseURL.replace(/\/$/, '');
+    return `${baseURL}${path}${suffix}`;
+  },
+  logoutDouyin: async () =>
+    (await client.post<{ success: boolean }>('/api/douyin/auth/logout')).data,
 
   // Bilibili submission
   createBilibiliSubmission: async (data: CreateSubmissionRequest) =>
