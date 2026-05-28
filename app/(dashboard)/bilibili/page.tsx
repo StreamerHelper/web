@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthSidebar } from '@/components/content/auth-sidebar';
+import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,6 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
 };
 
 export default function BilibiliPage() {
-  const [authSidebarOpen, setAuthSidebarOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
@@ -104,9 +103,11 @@ export default function BilibiliPage() {
                 请先登录B站账号才能使用投稿功能
               </p>
             </div>
-            <Button onClick={() => setAuthSidebarOpen(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              账号设置
+            <Button asChild>
+              <Link href="/settings#bilibili-credentials">
+                <Settings className="h-4 w-4 mr-2" />
+                账号设置
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -133,9 +134,11 @@ export default function BilibiliPage() {
         </Button>
 
         <div className="ml-auto">
-          <Button variant="outline" onClick={() => setAuthSidebarOpen(true)}>
-            <Settings className="h-4 w-4 mr-2" />
-            账号设置
+          <Button variant="outline" asChild>
+            <Link href="/settings#bilibili-credentials">
+              <Settings className="h-4 w-4 mr-2" />
+              账号设置
+            </Link>
           </Button>
         </div>
       </div>
@@ -201,8 +204,6 @@ export default function BilibiliPage() {
           </Button>
         </div>
       )}
-
-      <AuthSidebar open={authSidebarOpen} onOpenChange={setAuthSidebarOpen} />
     </div>
   );
 }
