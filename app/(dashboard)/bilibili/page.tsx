@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ErrorTooltipText } from '@/components/shared/error-tooltip-text';
 import { PageHeader } from '@/components/shared/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -378,13 +379,7 @@ function SubmissionRow({
         )}
       </TableCell>
       <TableCell className="max-w-[260px]">
-        {submission.lastError ? (
-          <span className="block truncate text-destructive" title={submission.lastError}>
-            {submission.lastError}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
+        <ErrorTooltipText error={submission.lastError} />
       </TableCell>
       <TableCell>
         <Button
@@ -468,8 +463,8 @@ function SubmissionPartRow({ part }: { part: SubmissionPart }) {
         {part.filename || '-'}
       </TableCell>
       <TableCell className="font-mono text-xs">{part.cid || '-'}</TableCell>
-      <TableCell className="max-w-[240px] truncate text-destructive" title={part.error || undefined}>
-        {part.error || '-'}
+      <TableCell className="max-w-[240px]">
+        <ErrorTooltipText error={part.error} />
       </TableCell>
     </TableRow>
   );

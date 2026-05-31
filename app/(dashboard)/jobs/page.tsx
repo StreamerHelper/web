@@ -1,6 +1,7 @@
 'use client';
 
 import { EmptyState } from '@/components/shared/empty-state';
+import { ErrorTooltipText } from '@/components/shared/error-tooltip-text';
 import { JobTableRow } from '@/components/shared/job-table-row';
 import { TableSkeleton } from '@/components/shared/loading';
 import { PageHeader } from '@/components/shared/page-header';
@@ -382,12 +383,10 @@ export default function JobsPage() {
                     <div className="text-xs font-medium text-destructive">
                       错误信息
                     </div>
-                    <div
-                      className="mt-1 truncate text-sm text-destructive"
-                      title={activeSelectedJob.errorMessage}
-                    >
-                      {activeSelectedJob.errorMessage}
-                    </div>
+                    <ErrorTooltipText
+                      error={activeSelectedJob.errorMessage}
+                      className="mt-1 text-sm"
+                    />
                   </div>
                 )}
 
@@ -602,12 +601,10 @@ function SubmissionCompactList({
           </div>
 
           {submission.lastError && (
-            <div
-              className="mt-1 truncate text-xs text-destructive"
-              title={submission.lastError}
-            >
-              {submission.lastError}
-            </div>
+            <ErrorTooltipText
+              error={submission.lastError}
+              className="mt-1 text-xs"
+            />
           )}
         </div>
       ))}
