@@ -1,6 +1,7 @@
 'use client';
 
 import { PageHeader } from '@/components/shared/page-header';
+import { AsrSettingsSection } from '@/components/settings/asr-settings-section';
 import { LoginCredentialsSection } from '@/components/settings/login-credentials-section';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -62,6 +63,8 @@ export default function SettingsPage() {
       </Card>
 
       <LoginCredentialsSection />
+
+      <AsrSettingsSection />
 
       <Card>
         <CardHeader>

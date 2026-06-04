@@ -2,6 +2,7 @@
 
 import { PlatformIcon } from '@/components/shared/platform-icon';
 import { DanmakuChatPanel } from '@/components/content/danmaku-chat-panel';
+import { TranscriptPanel } from '@/components/content/transcript-panel';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -15,11 +16,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib';
 import { formatDuration, formatFileSize } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { JobVideosResponse, VideoSegment } from '@/types';
-import { ChevronLeft, Download, Layers, MessageSquare, SkipForward } from 'lucide-react';
+import { ChevronLeft, Download, FileText, Layers, MessageSquare, SkipForward } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -149,6 +151,7 @@ export function JobVideoDialog({
   const [selectedSegments, setSelectedSegments] = useState<Set<number>>(new Set());
   const [isMerging, setIsMerging] = useState(false);
   const [isExportingDanmaku, setIsExportingDanmaku] = useState<string | null>(null);
+  const [isExportingTranscript, setIsExportingTranscript] = useState<string | null>(null);
   const [playbackOffsetMs, setPlaybackOffsetMs] = useState(0);
 
   const currentVideo = jobVideos?.videos[currentIndex];
@@ -287,6 +290,41 @@ export function JobVideoDialog({
       toast.error('弹幕下载失败，请重试');
     } finally {
       setIsExportingDanmaku(null);
+    }
+  };
+
+  const handleTranscriptExport = async (
+    format: 'txt' | 'json' | 'jsonl' | 'srt' | 'vtt'
+  ) => {
+    if (!jobVideos?.jobId) {
+      toast.error('任务信息缺失');
+      return;
+    }
+
+    setIsExportingTranscript(format);
+    try {
+      const response = await api.exportText({
+        jobId: jobVideos.jobId,
+        type: 'transcript',
+        format,
+      });
+
+      const fileResponse = await fetch(response.downloadUrl);
+      const blob = await fileResponse.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${sanitizeFilename(jobVideos.streamerName)}-${jobVideos.jobId}-transcript.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`转写文本下载完成 (${format.toUpperCase()})`);
+    } catch {
+      toast.error('转写文本下载失败，请重试');
+    } finally {
+      setIsExportingTranscript(null);
     }
   };
 
@@ -445,6 +483,38 @@ export function JobVideoDialog({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-xs"
+                    disabled={!jobVideos || isExportingTranscript !== null}
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    {isExportingTranscript
+                      ? `导出 ${isExportingTranscript.toUpperCase()} 中...`
+                      : '下载转写'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start">
+                  <DropdownMenuItem onClick={() => handleTranscriptExport('txt')}>
+                    下载 TXT
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleTranscriptExport('srt')}>
+                    下载 SRT
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleTranscriptExport('vtt')}>
+                    下载 VTT
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleTranscriptExport('jsonl')}>
+                    下载 JSONL
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleTranscriptExport('json')}>
+                    下载 JSON
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -497,11 +567,26 @@ export function JobVideoDialog({
             className="shrink-0"
             style={{ width: DANMAKU_PANEL_WIDTH, height: VIDEO_HEIGHT + 48 }}
           >
-            <DanmakuChatPanel
-              jobId={jobVideos?.jobId}
-              video={currentVideo}
-              playbackOffsetMs={playbackOffsetMs}
-            />
+            <Tabs defaultValue="danmaku" className="flex h-full flex-col">
+              <TabsList className="m-2 grid grid-cols-2">
+                <TabsTrigger value="danmaku">弹幕</TabsTrigger>
+                <TabsTrigger value="transcript">字幕</TabsTrigger>
+              </TabsList>
+              <TabsContent value="danmaku" className="mt-0 min-h-0 flex-1">
+                <DanmakuChatPanel
+                  jobId={jobVideos?.jobId}
+                  video={currentVideo}
+                  playbackOffsetMs={playbackOffsetMs}
+                />
+              </TabsContent>
+              <TabsContent value="transcript" className="mt-0 min-h-0 flex-1">
+                <TranscriptPanel
+                  jobId={jobVideos?.jobId}
+                  video={currentVideo}
+                  playbackOffsetMs={playbackOffsetMs}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </DialogContent>

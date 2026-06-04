@@ -181,6 +181,7 @@ const streamerSchema = z
         description: z.string().optional(),
         tags: z.array(z.string()).optional(),
         humanType2: z.number().optional(),
+        burnInSubtitles: z.boolean().optional(),
         collection: z
           .object({
             autoAdd: z.boolean(),
@@ -264,6 +265,7 @@ export function StreamerFormDialog({
       tags: values?.uploadSettings?.tags || [],
       humanType2:
         values?.uploadSettings?.humanType2 || DEFAULT_BILIBILI_HUMAN_TYPE2,
+      burnInSubtitles: values?.uploadSettings?.burnInSubtitles ?? false,
       collection: {
         autoAdd: values?.uploadSettings?.collection?.autoAdd ?? false,
         seasonId: values?.uploadSettings?.collection?.seasonId ?? null,
@@ -1051,6 +1053,27 @@ export function StreamerFormDialog({
                               }
                               clearCollectionSelection();
                             }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.burnInSubtitles"
+                    render={({ field }) => (
+                      <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3 sm:col-span-1">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-sm">压制字幕</FormLabel>
+                          <FormDescription className="text-xs">
+                            投稿合并时烧录转写字幕
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={Boolean(field.value)}
+                            onCheckedChange={field.onChange}
                           />
                         </FormControl>
                       </FormItem>

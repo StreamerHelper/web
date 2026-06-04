@@ -90,6 +90,7 @@ export interface Streamer {
     description?: string;
     tags?: string[];
     humanType2?: number;
+    burnInSubtitles?: boolean;
     collection?: BilibiliCollectionBinding;
   };
 }
@@ -221,9 +222,56 @@ export interface DanmakuQueryResponse {
   hasMore: boolean;
 }
 
+export interface TranscriptMessage {
+  id: string;
+  timestamp: number;
+  type: 'interim' | 'final' | 'punctuated';
+  text: string;
+  confidence: number;
+  language: string;
+  raw?: {
+    chunkDurationMs?: number;
+    [key: string]: unknown;
+  };
+}
+
+export interface TranscriptQueryResponse {
+  messages: TranscriptMessage[];
+  total: number;
+  hasMore: boolean;
+}
+
 export interface ExportTextResponse {
   downloadUrl: string;
   expiresAt: number;
+}
+
+export interface AsrSettings {
+  enabled: boolean;
+  provider: 'aliyun';
+  apiKeyEnv: string;
+  baseUrl: string;
+  model: string;
+  language: string;
+  chunkSeconds: number;
+  concurrency: number;
+  transcribeRecordings: boolean;
+  available: boolean;
+  apiKeySet: boolean;
+  apiKeyMasked: string;
+}
+
+export interface UpdateAsrSettingsRequest {
+  enabled?: boolean;
+  apiKey?: string;
+  clearApiKey?: boolean;
+  apiKeyEnv?: string;
+  baseUrl?: string;
+  model?: string;
+  language?: string;
+  chunkSeconds?: number;
+  concurrency?: number;
+  transcribeRecordings?: boolean;
 }
 
 export interface SystemHealth {
@@ -408,6 +456,7 @@ export interface SubmissionPart {
   filename?: string;
   cid?: number;
   rhythmIntervalMinutes?: number;
+  burnInSubtitles?: boolean;
   startedAt?: string;
   endedAt?: string;
   duration?: number;
@@ -469,6 +518,7 @@ export interface CreateSubmissionRequest {
   description?: string;
   tags?: string[];
   humanType2?: number;
+  burnInSubtitles?: boolean;
   collection?: BilibiliCollectionBinding;
 }
 

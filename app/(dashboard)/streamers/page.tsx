@@ -169,6 +169,7 @@ export default function StreamersPage() {
       description: streamer.uploadSettings?.description || '',
       tags: streamer.uploadSettings?.tags || [],
       humanType2: streamer.uploadSettings?.humanType2,
+      burnInSubtitles: streamer.uploadSettings?.burnInSubtitles ?? false,
       collection: streamer.uploadSettings?.collection,
     },
   });

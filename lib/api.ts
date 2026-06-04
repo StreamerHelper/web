@@ -11,7 +11,10 @@ import type {
   JobGroup,
   JobVideosResponse,
   DanmakuQueryResponse,
+  TranscriptQueryResponse,
   ExportTextResponse,
+  AsrSettings,
+  UpdateAsrSettingsRequest,
   BilibiliAuthStatus,
   BilibiliQRCode,
   BilibiliPollResult,
@@ -80,6 +83,10 @@ export default client;
 export const api = {
   getSystemHealth: async () => (await client.get<{ status: string; timestamp: string; uptime: number }>('/api/system/health')).data,
   getSystemInfo: async () => (await client.get<SystemInfo>('/api/system/info')).data,
+  getAsrSettings: async () =>
+    (await client.get<AsrSettings>('/api/system/asr-settings')).data,
+  updateAsrSettings: async (data: UpdateAsrSettingsRequest) =>
+    (await client.post<AsrSettings>('/api/system/asr-settings', data)).data,
   cleanupOldData: async (days: number) => (await client.post<{ success: boolean; deletedCount: number; message: string }>(`/api/system/cleanup?days=${days}`)).data,
 
   getStreamers: async (filters?: { platform?: Platform; isActive?: boolean }) => {
@@ -158,6 +165,15 @@ export const api = {
     limit?: number;
     offset?: number;
   }) => (await client.get<DanmakuQueryResponse>('/api/text/danmaku', { params })).data,
+  getTranscript: async (params: {
+    jobId: string;
+    startTime?: number;
+    endTime?: number;
+    limit?: number;
+    offset?: number;
+  }) =>
+    (await client.get<TranscriptQueryResponse>('/api/text/transcript', { params }))
+      .data,
   exportText: async (data: {
     jobId: string;
     type: 'danmaku' | 'transcript';

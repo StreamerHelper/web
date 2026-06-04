@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, X, Upload } from 'lucide-react';
@@ -39,6 +40,7 @@ const submitSchema = z.object({
   description: z.string().max(2000, '简介最多2000个字符').optional(),
   tags: z.array(z.string()).max(10, '最多10个标签').optional(),
   humanType2: z.number().optional(),
+  burnInSubtitles: z.boolean().optional(),
 });
 
 type SubmitFormValues = z.infer<typeof submitSchema>;
@@ -63,6 +65,7 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
       description: '',
       tags: [],
       humanType2: DEFAULT_BILIBILI_HUMAN_TYPE2,
+      burnInSubtitles: false,
     },
   });
 
@@ -96,6 +99,7 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
         description: `${job.streamerName} 直播回放\n\n直播时间：${dateStr}`,
         tags: ['直播回放', job.streamerName],
         humanType2: DEFAULT_BILIBILI_HUMAN_TYPE2,
+        burnInSubtitles: false,
       });
     }
   }, [job, form]);
@@ -132,6 +136,7 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
         description: values.description,
         tags: values.tags,
         humanType2: values.humanType2 || DEFAULT_BILIBILI_HUMAN_TYPE2,
+        burnInSubtitles: values.burnInSubtitles,
       });
       toast.success('投稿任务已创建');
       onSuccess?.(submission);
@@ -218,6 +223,27 @@ export function SubmitDialog({ open, onOpenChange, job, onSuccess }: SubmitDialo
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="burnInSubtitles"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>压制字幕</FormLabel>
+                    <FormDescription className="text-xs">
+                      使用已有转写文本烧录字幕
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={Boolean(field.value)}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

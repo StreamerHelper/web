@@ -16,6 +16,7 @@ export interface UploadSettings {
   description?: string;
   tags?: string[];
   humanType2?: number;
+  burnInSubtitles?: boolean;
   collection?: BilibiliCollectionBinding;
 }
 
