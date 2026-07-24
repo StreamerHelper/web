@@ -261,6 +261,20 @@ export interface AsrSettings {
   apiKeyMasked: string;
 }
 
+export interface AsrAvailableModel {
+  id: string;
+  object?: string;
+  created?: number;
+  ownedBy?: string;
+}
+
+export interface AsrModelsResponse {
+  models: AsrAvailableModel[];
+  fetchedAt: number;
+  source: string;
+  error?: string;
+}
+
 export interface UpdateAsrSettingsRequest {
   enabled?: boolean;
   apiKey?: string;

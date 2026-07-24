@@ -13,6 +13,7 @@ import type {
   DanmakuQueryResponse,
   TranscriptQueryResponse,
   ExportTextResponse,
+  AsrModelsResponse,
   AsrSettings,
   UpdateAsrSettingsRequest,
   BilibiliAuthStatus,
@@ -32,7 +33,7 @@ import type {
   CreateBilibiliSeasonRequest,
   CreateBilibiliSeasonResponse,
 } from '@/types';
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
 import { API_CONFIG } from './constants';
 
@@ -42,6 +43,10 @@ interface ApiErrorResponse {
   code?: string;
   platform?: string;
 }
+
+type ApiRequestConfig = AxiosRequestConfig & {
+  silentError?: boolean;
+};
 
 const client = axios.create({
   baseURL: API_CONFIG.baseURL,
@@ -67,7 +72,7 @@ client.interceptors.response.use(
     if (isNetworkError) {
       return Promise.reject(error);
     }
-    if ((error.config as { silentError?: boolean } | undefined)?.silentError) {
+    if ((error.config as ApiRequestConfig | undefined)?.silentError) {
       return Promise.reject(error);
     }
     const message = error.response?.data?.error || error.response?.data?.message || error.message || '请求失败';
@@ -86,6 +91,12 @@ export const api = {
   getSystemInfo: async () => (await client.get<SystemInfo>('/api/system/info')).data,
   getAsrSettings: async () =>
     (await client.get<AsrSettings>('/api/system/asr-settings')).data,
+  getAsrModels: async () =>
+    (
+      await client.get<AsrModelsResponse>('/api/system/asr-models', {
+        silentError: true,
+      } as ApiRequestConfig)
+    ).data,
   updateAsrSettings: async (data: UpdateAsrSettingsRequest) =>
     (await client.post<AsrSettings>('/api/system/asr-settings', data)).data,
   cleanupOldData: async (days: number) => (await client.post<{ success: boolean; deletedCount: number; message: string }>(`/api/system/cleanup?days=${days}`)).data,
@@ -106,13 +117,13 @@ export const api = {
     const response = await client.post<{ streamer: Streamer; status: StreamStatus }>(
       `/api/streamers/${id}/check`,
       undefined,
-      { silentError: options?.silentError } as any
+      { silentError: options?.silentError } as ApiRequestConfig
     );
     return response.data.status;
   },
 
   getJobs: async (filters?: JobFilterValues) => {
-    const params: any = {};
+    const params: Record<string, string | number> = {};
     if (filters?.id) params.id = filters.id;
     if (filters?.status) params.status = filters.status;
     if (filters?.streamerId) params.streamerId = filters.streamerId;

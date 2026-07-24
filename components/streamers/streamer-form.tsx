@@ -1015,8 +1015,8 @@ export function StreamerFormDialog({
                     control={form.control}
                     name="uploadSettings.autoUpload"
                     render={({ field }) => (
-                      <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3 sm:col-span-1">
-                        <div className="space-y-0.5">
+                      <FormItem className="flex min-h-[76px] flex-row items-center justify-between rounded-lg border bg-muted/15 p-3 sm:col-span-1">
+                        <div className="min-w-0 space-y-0.5">
                           <FormLabel className="text-sm">启用投稿</FormLabel>
                           <FormDescription className="text-xs">
                             录制完成后自动投稿
@@ -1034,37 +1034,10 @@ export function StreamerFormDialog({
 
                   <FormField
                     control={form.control}
-                    name="uploadSettings.collection.autoAdd"
-                    render={({ field }) => (
-                      <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3 sm:col-span-1">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-sm">加入合集</FormLabel>
-                          <FormDescription className="text-xs">
-                            投稿后自动归档
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={Boolean(field.value)}
-                            onCheckedChange={checked => {
-                              if (checked) {
-                                field.onChange(true);
-                                return;
-                              }
-                              clearCollectionSelection();
-                            }}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
                     name="uploadSettings.burnInSubtitles"
                     render={({ field }) => (
-                      <FormItem className="flex h-full flex-row items-center justify-between rounded-lg border p-3 sm:col-span-1">
-                        <div className="space-y-0.5">
+                      <FormItem className="flex min-h-[76px] flex-row items-center justify-between rounded-lg border bg-muted/15 p-3 sm:col-span-1">
+                        <div className="min-w-0 space-y-0.5">
                           <FormLabel className="text-sm">压制字幕</FormLabel>
                           <FormDescription className="text-xs">
                             投稿合并时烧录转写字幕
@@ -1177,11 +1150,108 @@ export function StreamerFormDialog({
 
                   <FormField
                     control={form.control}
+                    name="uploadSettings.description"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-4">
+                        <FormLabel>视频简介</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="视频简介内容"
+                            className="min-h-[72px] resize-none"
+                            rows={2}
+                            {...field}
+                            value={field.value || ''}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.tags"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-4">
+                        <FormLabel>标签</FormLabel>
+                        <div className="space-y-2">
+                          <div className="flex min-w-0 gap-2">
+                            <Input
+                              className="min-w-0"
+                              placeholder="输入标签"
+                              value={tagInput}
+                              onChange={(e) => setTagInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddTag();
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="icon"
+                              aria-label="添加标签"
+                              onClick={handleAddTag}
+                              disabled={!tagInput.trim()}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="flex min-h-[28px] flex-wrap gap-1">
+                            {(field.value || []).map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => handleRemoveTag(tag)}
+                              >
+                                {tag}
+                                <X className="ml-1 h-3 w-3" />
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="uploadSettings.collection.autoAdd"
+                    render={({ field }) => (
+                      <FormItem className="flex min-h-[76px] flex-row items-center justify-between rounded-lg border bg-muted/15 p-3 sm:col-span-1">
+                        <div className="min-w-0 space-y-0.5">
+                          <FormLabel className="text-sm">加入合集</FormLabel>
+                          <FormDescription className="text-xs">
+                            投稿后自动归档
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={Boolean(field.value)}
+                            onCheckedChange={checked => {
+                              if (checked) {
+                                field.onChange(true);
+                                return;
+                              }
+                              clearCollectionSelection();
+                            }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
                     name="uploadSettings.collection.sectionId"
                     render={() => (
-                      <FormItem className="sm:col-span-2">
+                      <FormItem className="min-w-0 sm:col-span-3">
                         <FormLabel>投稿合集</FormLabel>
-                        <div className="flex min-w-0 gap-2">
+                        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                           <div className="min-w-0 flex-1">
                             <Select
                               value={selectedCollectionValue}
@@ -1208,40 +1278,46 @@ export function StreamerFormDialog({
                               </SelectContent>
                             </Select>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="shrink-0"
-                            aria-label="刷新投稿合集"
-                            onClick={() => loadSeasons({ refresh: true })}
-                            disabled={loadingSeasons}
-                          >
-                            {loadingSeasons ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="shrink-0"
-                            onClick={() => {
-                              const streamerName = form.getValues('name').trim();
-                              setNewCollectionTitle(
-                                newCollectionTitle ||
-                                  (streamerName ? `${streamerName}直播录像` : '')
-                              );
-                              setShowCollectionCreator(value => !value);
-                            }}
-                          >
-                            <Plus className="mr-2 h-4 w-4" />
-                            新建
-                          </Button>
+                          <div className="flex shrink-0 gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0"
+                              aria-label="刷新投稿合集"
+                              onClick={() => loadSeasons({ refresh: true })}
+                              disabled={loadingSeasons}
+                            >
+                              {loadingSeasons ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="shrink-0"
+                              onClick={() => {
+                                const streamerName = form
+                                  .getValues('name')
+                                  .trim();
+                                setNewCollectionTitle(
+                                  newCollectionTitle ||
+                                    (streamerName
+                                      ? `${streamerName}直播录像`
+                                      : '')
+                                );
+                                setShowCollectionCreator(value => !value);
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              新建
+                            </Button>
+                          </div>
                         </div>
                         {showCollectionCreator && (
-                          <div className="mt-2 grid gap-2 rounded-lg border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                          <div className="mt-2 grid gap-2 rounded-lg border bg-muted/15 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                             <Input
                               placeholder="合集标题"
                               value={newCollectionTitle}
@@ -1280,75 +1356,6 @@ export function StreamerFormDialog({
                             </div>
                           </div>
                         )}
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="uploadSettings.tags"
-                    render={({ field }) => (
-                      <FormItem className="sm:col-span-2">
-                        <FormLabel>标签</FormLabel>
-                        <div className="space-y-2">
-                          <div className="flex min-w-0 gap-2">
-                            <Input
-                              className="min-w-0"
-                              placeholder="输入标签"
-                              value={tagInput}
-                              onChange={(e) => setTagInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleAddTag();
-                                }
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="icon"
-                              onClick={handleAddTag}
-                              disabled={!tagInput.trim()}
-                            >
-                              <X className="h-4 w-4 rotate-45" />
-                            </Button>
-                          </div>
-                          <div className="flex min-h-[28px] flex-wrap gap-1">
-                            {(field.value || []).map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant="secondary"
-                                className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
-                                onClick={() => handleRemoveTag(tag)}
-                              >
-                                {tag}
-                                <X className="ml-1 h-3 w-3" />
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="uploadSettings.description"
-                    render={({ field }) => (
-                      <FormItem className="sm:col-span-4">
-                        <FormLabel>视频简介</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="视频简介内容"
-                            className="resize-none"
-                            rows={2}
-                            {...field}
-                            value={field.value || ''}
-                          />
-                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
