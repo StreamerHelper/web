@@ -418,16 +418,33 @@ export type DouyinBrowserLoginState =
   | 'failed'
   | 'cancelled';
 
+export type DouyinVerificationMethod =
+  | 'receive_sms'
+  | 'face'
+  | 'send_sms';
+
+export type DouyinVerificationStage =
+  | 'choose_method'
+  | 'processing'
+  | 'awaiting_code'
+  | 'awaiting_external';
+
 export type DouyinBrowserLoginInteraction =
   | {
-      type: 'click';
-      xRatio: number;
-      yRatio: number;
+      type: 'select_verification_method';
+      method: DouyinVerificationMethod;
     }
   | {
-      type: 'type';
-      text: string;
+      type: 'submit_verification_code';
+      code: string;
     };
+
+export interface DouyinBrowserLoginVerification {
+  stage: DouyinVerificationStage;
+  method?: DouyinVerificationMethod;
+  availableMethods: DouyinVerificationMethod[];
+  prompt?: string;
+}
 
 export interface DouyinBrowserLoginStatus {
   sessionId: string;
@@ -439,6 +456,7 @@ export interface DouyinBrowserLoginStatus {
   cookieNames?: string[];
   verifiedAt?: string;
   error?: string;
+  verification?: DouyinBrowserLoginVerification;
 }
 
 export interface SaveDouyinCookieRequest {

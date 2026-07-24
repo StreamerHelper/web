@@ -19,6 +19,7 @@ import type {
   BilibiliQRCode,
   BilibiliPollResult,
   DouyinAuthStatus,
+  DouyinBrowserLoginInteraction,
   DouyinBrowserLoginStatus,
   DouyinCookieVerification,
   SaveDouyinCookieRequest,
@@ -209,9 +210,7 @@ export const api = {
     (await client.get<DouyinBrowserLoginStatus>(`/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}`)).data,
   interactWithDouyinBrowserLogin: async (
     sessionId: string,
-    interaction:
-      | { type: 'click'; xRatio: number; yRatio: number }
-      | { type: 'type'; text: string }
+    interaction: DouyinBrowserLoginInteraction
   ) =>
     (
       await client.post<DouyinBrowserLoginStatus>(
