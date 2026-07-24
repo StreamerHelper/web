@@ -1,14 +1,22 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   ChevronDown,
   CheckCircle,
   Loader2,
+  MousePointerClick,
   QrCode,
   Save,
+  Send,
   Settings,
   ShieldCheck,
   Trash2,
@@ -32,7 +40,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { DouyinBrowserLoginStatus, DouyinCookieVerification } from '@/types';
+import type {
+  DouyinBrowserLoginInteraction,
+  DouyinBrowserLoginStatus,
+  DouyinCookieVerification,
+} from '@/types';
 
 function formatDateTime(value?: string | null) {
   if (!value) {
@@ -114,6 +126,15 @@ function BrowserLoginBadge({
     );
   }
 
+  if (status === 'verification_required') {
+    return (
+      <Badge variant="secondary" className="bg-amber-500 text-white">
+        <ShieldCheck className="mr-1 h-3 w-3" />
+        需要验证
+      </Badge>
+    );
+  }
+
   if (status === 'authenticated') {
     return (
       <Badge className="bg-green-500 text-white">
@@ -151,6 +172,39 @@ function isBrowserLoginTerminal(
     status &&
       ['authenticated', 'expired', 'failed', 'cancelled'].includes(status)
   );
+}
+
+function getContainedImageClickRatios(
+  event: ReactMouseEvent<HTMLButtonElement>,
+  image: HTMLImageElement
+): { xRatio: number; yRatio: number } | null {
+  if (!image.naturalWidth || !image.naturalHeight) {
+    return null;
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return null;
+  }
+  const imageRatio = image.naturalWidth / image.naturalHeight;
+  const boxRatio = rect.width / rect.height;
+  const renderedWidth =
+    imageRatio > boxRatio ? rect.width : rect.height * imageRatio;
+  const renderedHeight =
+    imageRatio > boxRatio ? rect.width / imageRatio : rect.height;
+  const offsetX = (rect.width - renderedWidth) / 2;
+  const offsetY = (rect.height - renderedHeight) / 2;
+  const x = event.clientX - rect.left - offsetX;
+  const y = event.clientY - rect.top - offsetY;
+
+  if (x < 0 || y < 0 || x > renderedWidth || y > renderedHeight) {
+    return null;
+  }
+
+  return {
+    xRatio: x / renderedWidth,
+    yRatio: y / renderedHeight,
+  };
 }
 
 type CredentialKey = 'bilibili' | 'douyin';
@@ -225,6 +279,7 @@ export function LoginCredentialsSection() {
   const [douyinBrowserSessionId, setDouyinBrowserSessionId] = useState<
     string | null
   >(null);
+  const [douyinBrowserInput, setDouyinBrowserInput] = useState('');
   const handledDouyinBrowserSessionIdRef = useRef<string | null>(null);
   const [lastVerification, setLastVerification] =
     useState<DouyinCookieVerification | null>(null);
@@ -289,8 +344,23 @@ export function LoginCredentialsSection() {
       }),
     onSuccess: data => {
       handledDouyinBrowserSessionIdRef.current = null;
+      setDouyinBrowserInput('');
       setDouyinBrowserSessionId(data.sessionId);
       toast.success('抖音登录窗口已启动');
+    },
+  });
+
+  const interactWithDouyinBrowserLoginMutation = useMutation({
+    mutationFn: (interaction: DouyinBrowserLoginInteraction) =>
+      api.interactWithDouyinBrowserLogin(
+        douyinBrowserSessionId!,
+        interaction
+      ),
+    onSuccess: data => {
+      queryClient.setQueryData(
+        ['douyin', 'auth', 'browser-login', data.sessionId],
+        data
+      );
     },
   });
 
@@ -386,6 +456,39 @@ export function LoginCredentialsSection() {
           douyinBrowserLoginStatus.screenshotUpdatedAt
         )
       : null;
+  const handleDouyinBrowserClick = (
+    event: ReactMouseEvent<HTMLButtonElement>
+  ) => {
+    const image = event.currentTarget.querySelector('img');
+    if (
+      !image ||
+      !douyinBrowserSessionId ||
+      interactWithDouyinBrowserLoginMutation.isPending
+    ) {
+      return;
+    }
+
+    const ratios = getContainedImageClickRatios(event, image);
+    if (!ratios) {
+      return;
+    }
+    interactWithDouyinBrowserLoginMutation.mutate({
+      type: 'click',
+      ...ratios,
+    });
+  };
+  const typeIntoDouyinBrowser = () => {
+    const text = douyinBrowserInput.trim();
+    if (!text || !douyinBrowserSessionId) {
+      return;
+    }
+    interactWithDouyinBrowserLoginMutation.mutate(
+      { type: 'type', text },
+      {
+        onSuccess: () => setDouyinBrowserInput(''),
+      }
+    );
+  };
   const toggleCredential = (credential: CredentialKey) => {
     setExpandedCredential(current =>
       current === credential ? null : credential
@@ -506,37 +609,97 @@ export function LoginCredentialsSection() {
               </TabsList>
 
               <TabsContent value="browser" className="space-y-4">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => startDouyinBrowserLoginMutation.mutate()}
-                      disabled={
-                        isStartingDouyinLogin || hasActiveDouyinBrowserSession
-                      }
-                    >
-                      {isStartingDouyinLogin ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <QrCode className="mr-2 h-4 w-4" />
-                      )}
-                      开始登录
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => cancelDouyinBrowserLoginMutation.mutate()}
-                      disabled={
-                        isCancellingDouyinLogin || !hasActiveDouyinBrowserSession
-                      }
-                    >
-                      {isCancellingDouyinLogin ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <XCircle className="mr-2 h-4 w-4" />
-                      )}
-                      取消
-                    </Button>
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => startDouyinBrowserLoginMutation.mutate()}
+                        disabled={
+                          isStartingDouyinLogin || hasActiveDouyinBrowserSession
+                        }
+                      >
+                        {isStartingDouyinLogin ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <QrCode className="mr-2 h-4 w-4" />
+                        )}
+                        开始登录
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          cancelDouyinBrowserLoginMutation.mutate()
+                        }
+                        disabled={
+                          isCancellingDouyinLogin ||
+                          !hasActiveDouyinBrowserSession
+                        }
+                      >
+                        {isCancellingDouyinLogin ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <XCircle className="mr-2 h-4 w-4" />
+                        )}
+                        取消
+                      </Button>
+                    </div>
+
+                    {douyinBrowserLoginStatus?.status ===
+                      'verification_required' && (
+                      <>
+                        <Alert>
+                          <MousePointerClick className="h-4 w-4" />
+                          <AlertDescription>
+                            扫码已完成，抖音要求进一步验证。请直接点击右侧登录画面选择短信或刷脸验证。
+                          </AlertDescription>
+                        </Alert>
+                        <div className="space-y-2">
+                          <Label htmlFor="douyin-browser-input">
+                            验证码或页面输入
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="douyin-browser-input"
+                              value={douyinBrowserInput}
+                              onChange={event =>
+                                setDouyinBrowserInput(event.target.value)
+                              }
+                              onKeyDown={event => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  typeIntoDouyinBrowser();
+                                }
+                              }}
+                              placeholder="先点击画面中的输入框"
+                              maxLength={128}
+                              autoComplete="one-time-code"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={typeIntoDouyinBrowser}
+                              disabled={
+                                !douyinBrowserInput.trim() ||
+                                interactWithDouyinBrowserLoginMutation.isPending
+                              }
+                            >
+                              {interactWithDouyinBrowserLoginMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Send className="h-4 w-4" />
+                              )}
+                              <span className="sr-only">输入到登录页面</span>
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            如需短信验证码，先在右侧画面点击输入框，再从这里输入。
+                          </p>
+                        </div>
+                      </>
+                    )}
+
                     {douyinBrowserLoginStatus?.error && (
                       <span className="text-sm text-destructive">
                         {douyinBrowserLoginStatus.error}
@@ -546,11 +709,23 @@ export function LoginCredentialsSection() {
 
                   <div className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-md border bg-background">
                     {douyinLoginScreenshotUrl ? (
-                      <img
-                        src={douyinLoginScreenshotUrl}
-                        alt="抖音登录截图"
-                        className="h-full max-h-[520px] w-full object-contain"
-                      />
+                      <button
+                        type="button"
+                        className="relative block h-full max-h-[640px] w-full cursor-crosshair overflow-hidden outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        onClick={handleDouyinBrowserClick}
+                        disabled={
+                          !hasActiveDouyinBrowserSession ||
+                          interactWithDouyinBrowserLoginMutation.isPending
+                        }
+                        aria-label="点击操作抖音远程登录页面"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={douyinLoginScreenshotUrl}
+                          alt="抖音登录截图"
+                          className="pointer-events-none h-full max-h-[640px] w-full object-contain"
+                        />
+                      </button>
                     ) : (
                       <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
                         <QrCode className="h-8 w-8" />

@@ -207,6 +207,18 @@ export const api = {
     (await client.post<DouyinBrowserLoginStatus>('/api/douyin/auth/browser-login', data || {})).data,
   getDouyinBrowserLoginStatus: async (sessionId: string) =>
     (await client.get<DouyinBrowserLoginStatus>(`/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}`)).data,
+  interactWithDouyinBrowserLogin: async (
+    sessionId: string,
+    interaction:
+      | { type: 'click'; xRatio: number; yRatio: number }
+      | { type: 'type'; text: string }
+  ) =>
+    (
+      await client.post<DouyinBrowserLoginStatus>(
+        `/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}/interact`,
+        interaction
+      )
+    ).data,
   cancelDouyinBrowserLogin: async (sessionId: string) =>
     (await client.post<{ success: boolean }>(`/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}/cancel`)).data,
   getDouyinBrowserLoginScreenshotUrl: (sessionId: string, cacheKey?: string | number) => {

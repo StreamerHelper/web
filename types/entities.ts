@@ -412,10 +412,22 @@ export interface DouyinCookieVerification {
 export type DouyinBrowserLoginState =
   | 'initializing'
   | 'waiting'
+  | 'verification_required'
   | 'authenticated'
   | 'expired'
   | 'failed'
   | 'cancelled';
+
+export type DouyinBrowserLoginInteraction =
+  | {
+      type: 'click';
+      xRatio: number;
+      yRatio: number;
+    }
+  | {
+      type: 'type';
+      text: string;
+    };
 
 export interface DouyinBrowserLoginStatus {
   sessionId: string;
