@@ -405,16 +405,34 @@ export interface BilibiliPollResult {
 }
 
 // Douyin Authentication
+export type DouyinAuthState =
+  | 'unconfigured'
+  | 'unknown'
+  | 'validating'
+  | 'valid'
+  | 'challenged'
+  | 'expired';
+
+export type DouyinAuthReportedState = DouyinAuthState;
+
 export interface DouyinAuthStatus {
   isAuthenticated: boolean;
-  source?: 'database' | 'config';
+  state?: DouyinAuthReportedState;
+  source?: 'database' | 'config' | 'browser_profile';
+  browserHealthy?: boolean;
+  profilePersistent?: boolean;
+  validatedAt?: string | null;
+  lastValidatedAt?: string | null;
+  stateChangedAt?: string | null;
+  authExpiresAt?: string | null;
+  lastValidationCode?: string | null;
   cookieNames?: string[];
   verifiedAt?: string | null;
   updatedAt?: string;
   lastValidationError?: string | null;
 }
 
-export interface DouyinCookieVerification {
+export interface DouyinProfileVerification {
   ok: boolean;
   cookieNames: string[];
   verifiedAt?: string;
@@ -427,6 +445,7 @@ export type DouyinBrowserLoginState =
   | 'initializing'
   | 'waiting'
   | 'verification_required'
+  | 'validating'
   | 'authenticated'
   | 'expired'
   | 'failed'
@@ -471,17 +490,6 @@ export interface DouyinBrowserLoginStatus {
   verifiedAt?: string;
   error?: string;
   verification?: DouyinBrowserLoginVerification;
-}
-
-export interface SaveDouyinCookieRequest {
-  cookie: string;
-  roomId?: string;
-  verify?: boolean;
-}
-
-export interface SaveDouyinCookieResponse {
-  status: DouyinAuthStatus;
-  verification?: DouyinCookieVerification;
 }
 
 export interface BilibiliUploadResult {

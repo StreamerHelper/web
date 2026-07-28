@@ -1,5 +1,6 @@
 import type {
   Job,
+  JobBrowseFilterValues,
   JobFilterValues,
   JobStats,
   Platform,
@@ -22,9 +23,7 @@ import type {
   DouyinAuthStatus,
   DouyinBrowserLoginInteraction,
   DouyinBrowserLoginStatus,
-  DouyinCookieVerification,
-  SaveDouyinCookieRequest,
-  SaveDouyinCookieResponse,
+  DouyinProfileVerification,
   BilibiliSubmission,
   BilibiliSubmissionsResponse,
   BilibiliPartitionsResponse,
@@ -32,6 +31,7 @@ import type {
   CreateSubmissionRequest,
   CreateBilibiliSeasonRequest,
   CreateBilibiliSeasonResponse,
+  PaginatedResponse,
 } from '@/types';
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
@@ -136,8 +136,8 @@ export const api = {
     return {
       data: response.data.jobs,
       total: response.data.total,
-      page: filters?.page || 1,
-      pageSize: filters?.pageSize || 50,
+      page: Math.floor(response.data.offset / response.data.limit) + 1,
+      pageSize: response.data.limit,
     };
   },
   getJobStats: async () => (await client.get<JobStats>('/api/jobs/stats')).data,
@@ -152,15 +152,34 @@ export const api = {
     (await client.post<{ success: boolean; message: string; deletedKeys?: number }>(`/api/jobs/${id}/delete`)).data,
 
   // Content browsing
-  getJobBrowse: async (filters?: { streamerName?: string; startDate?: string; endDate?: string; minSegmentCount?: number }) => {
-    const params = new URLSearchParams();
-    if (filters?.streamerName) params.set('streamerName', filters.streamerName);
-    if (filters?.startDate) params.set('startDate', filters.startDate);
-    if (filters?.endDate) params.set('endDate', filters.endDate);
-    if (filters?.minSegmentCount !== undefined) params.set('minSegmentCount', String(filters.minSegmentCount));
-    const query = params.toString();
-    const response = await client.get<{ groups: JobGroup[] }>(`/api/jobs/browse${query ? `?${query}` : ''}`);
-    return response.data.groups;
+  getJobBrowse: async (
+    filters?: JobBrowseFilterValues
+  ): Promise<PaginatedResponse<JobGroup>> => {
+    const params: Record<string, string | number> = {};
+    if (filters?.streamerName) params.streamerName = filters.streamerName;
+    if (filters?.startDate) params.startDate = filters.startDate;
+    if (filters?.endDate) params.endDate = filters.endDate;
+    if (filters?.minSegmentCount !== undefined) {
+      params.minSegmentCount = filters.minSegmentCount;
+    }
+    if (filters?.pageSize) params.limit = filters.pageSize;
+    if (filters?.page) {
+      params.offset = (filters.page - 1) * (filters.pageSize || 24);
+    }
+
+    const response = await client.get<{
+      groups: JobGroup[];
+      total: number;
+      limit: number;
+      offset: number;
+    }>('/api/jobs/browse', { params });
+
+    return {
+      data: response.data.groups,
+      total: response.data.total,
+      page: Math.floor(response.data.offset / response.data.limit) + 1,
+      pageSize: response.data.limit,
+    };
   },
   getJobStreamers: async () => {
     const response = await client.get<{ streamers: string[] }>('/api/jobs/streamers');
@@ -211,10 +230,8 @@ export const api = {
   // Douyin authentication
   getDouyinAuthStatus: async () =>
     (await client.get<DouyinAuthStatus>('/api/douyin/auth/status')).data,
-  saveDouyinCookie: async (data: SaveDouyinCookieRequest) =>
-    (await client.post<SaveDouyinCookieResponse>('/api/douyin/auth/cookie', data)).data,
-  verifyDouyinCookie: async (data?: { cookie?: string; roomId?: string }) =>
-    (await client.post<DouyinCookieVerification>('/api/douyin/auth/verify', data || {})).data,
+  verifyDouyinProfile: async (data?: { roomId?: string }) =>
+    (await client.post<DouyinProfileVerification>('/api/douyin/auth/verify', data || {})).data,
   startDouyinBrowserLogin: async (data?: { roomId?: string }) =>
     (await client.post<DouyinBrowserLoginStatus>('/api/douyin/auth/browser-login', data || {})).data,
   getDouyinBrowserLoginStatus: async (sessionId: string) =>

@@ -50,6 +50,15 @@ export interface JobFilterValues {
   sortOrder?: 'ASC' | 'DESC';
 }
 
+export interface JobBrowseFilterValues {
+  streamerName?: string;
+  startDate?: string;
+  endDate?: string;
+  minSegmentCount?: number;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface StreamerFilterValues {
   platform?: Platform;
   isActive?: boolean;

@@ -13,7 +13,6 @@ import {
   CheckCircle,
   Loader2,
   QrCode,
-  Save,
   Send,
   Settings,
   ShieldCheck,
@@ -34,14 +33,14 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type {
   DouyinBrowserLoginInteraction,
   DouyinBrowserLoginStatus,
-  DouyinCookieVerification,
+  DouyinProfileVerification,
+  DouyinAuthState,
+  DouyinAuthStatus,
   DouyinVerificationMethod,
 } from '@/types';
 
@@ -83,6 +82,103 @@ function CredentialBadge({
       未保存
     </Badge>
   );
+}
+
+function resolveDouyinAuthState(
+  status?: DouyinAuthStatus
+): DouyinAuthState {
+  if (status?.state) {
+    return status.state;
+  }
+
+  if (status?.lastValidationError) {
+    return 'challenged';
+  }
+
+  if (status?.isAuthenticated) {
+    // Legacy backends only reported that a Cookie row existed. Do not treat
+    // that boolean as proof that the real recording path still works.
+    return 'validating';
+  }
+
+  if (status?.source) {
+    return 'expired';
+  }
+
+  return 'unconfigured';
+}
+
+function DouyinAuthBadge({ state }: { state: DouyinAuthState }) {
+  if (state === 'valid') {
+    return (
+      <Badge className="bg-green-500 text-white">
+        <CheckCircle className="mr-1 h-3 w-3" />
+        访问正常
+      </Badge>
+    );
+  }
+
+  if (state === 'validating') {
+    return (
+      <Badge variant="outline">
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+        验证中
+      </Badge>
+    );
+  }
+
+  if (state === 'challenged') {
+    return (
+      <Badge variant="secondary" className="bg-amber-500 text-white">
+        <ShieldCheck className="mr-1 h-3 w-3" />
+        需要验证
+      </Badge>
+    );
+  }
+
+  if (state === 'expired') {
+    return (
+      <Badge variant="destructive">
+        <AlertTriangle className="mr-1 h-3 w-3" />
+        登录已失效
+      </Badge>
+    );
+  }
+
+  if (state === 'unknown') {
+    return (
+      <Badge variant="secondary" className="bg-amber-500 text-white">
+        <AlertTriangle className="mr-1 h-3 w-3" />
+        状态未知
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline">
+      <XCircle className="mr-1 h-3 w-3" />
+      未登录
+    </Badge>
+  );
+}
+
+function getDouyinAuthDescription(state: DouyinAuthState) {
+  if (state === 'valid') {
+    return '持久化浏览器会话已通过抖音账号接口验证';
+  }
+  if (state === 'validating') {
+    return '正在使用持久化浏览器环境确认账号登录态';
+  }
+  if (state === 'challenged') {
+    return '抖音要求完成二次验证，录播请求已停止重复尝试';
+  }
+  if (state === 'expired') {
+    return '浏览器登录会话已失效，需要重新登录';
+  }
+  if (state === 'unknown') {
+    return '暂时无法确认浏览器登录态，恢复 Browser 服务后可重新验证';
+  }
+  return '使用持久化浏览器环境完成登录，容器重启后仍会保留';
 }
 
 function CookieNames({ names }: { names?: string[] }) {
@@ -134,11 +230,20 @@ function BrowserLoginBadge({
     );
   }
 
+  if (status === 'validating') {
+    return (
+      <Badge variant="outline">
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+        正在确认
+      </Badge>
+    );
+  }
+
   if (status === 'authenticated') {
     return (
       <Badge className="bg-green-500 text-white">
         <CheckCircle className="mr-1 h-3 w-3" />
-        已保存
+        登录完成
       </Badge>
     );
   }
@@ -264,15 +369,15 @@ export function LoginCredentialsSection() {
   const queryClient = useQueryClient();
   const [expandedCredential, setExpandedCredential] =
     useState<CredentialKey | null>(null);
-  const [douyinCookie, setDouyinCookie] = useState('');
   const [douyinRoomId, setDouyinRoomId] = useState('');
   const [douyinBrowserSessionId, setDouyinBrowserSessionId] = useState<
     string | null
   >(null);
   const [douyinVerificationCode, setDouyinVerificationCode] = useState('');
   const handledDouyinBrowserSessionIdRef = useRef<string | null>(null);
+  const awaitingDouyinValidationRef = useRef(false);
   const [lastVerification, setLastVerification] =
-    useState<DouyinCookieVerification | null>(null);
+    useState<DouyinProfileVerification | null>(null);
 
   const { data: bilibiliStatus, isLoading: isLoadingBilibili } = useQuery({
     queryKey: ['bilibili', 'auth', 'status'],
@@ -282,7 +387,13 @@ export function LoginCredentialsSection() {
   const { data: douyinStatus, isLoading: isLoadingDouyin } = useQuery({
     queryKey: ['douyin', 'auth', 'status'],
     queryFn: api.getDouyinAuthStatus,
+    refetchInterval: query =>
+      resolveDouyinAuthState(query.state.data) === 'validating'
+        ? 2000
+        : 30000,
+    refetchOnWindowFocus: true,
   });
+  const douyinAuthState = resolveDouyinAuthState(douyinStatus);
 
   const { data: douyinBrowserLoginStatus } = useQuery({
     queryKey: ['douyin', 'auth', 'browser-login', douyinBrowserSessionId],
@@ -295,34 +406,18 @@ export function LoginCredentialsSection() {
     },
   });
 
-  const saveDouyinMutation = useMutation({
-    mutationFn: () =>
-      api.saveDouyinCookie({
-        cookie: douyinCookie,
-        roomId: douyinRoomId.trim() || undefined,
-        verify: true,
-      }),
-    onSuccess: data => {
-      setDouyinCookie('');
-      setLastVerification(data.verification || null);
-      queryClient.invalidateQueries({ queryKey: ['douyin', 'auth', 'status'] });
-      toast.success('抖音凭证已保存');
-    },
-  });
-
   const verifyDouyinMutation = useMutation({
     mutationFn: () =>
-      api.verifyDouyinCookie({
-        cookie: douyinCookie.trim() || undefined,
+      api.verifyDouyinProfile({
         roomId: douyinRoomId.trim() || undefined,
       }),
     onSuccess: data => {
       setLastVerification(data);
       queryClient.invalidateQueries({ queryKey: ['douyin', 'auth', 'status'] });
       if (data.ok) {
-        toast.success('抖音凭证验证通过');
+        toast.success('抖音账号登录态验证通过');
       } else {
-        toast.error(data.error || '抖音凭证验证失败');
+        toast.error(data.error || '抖音账号登录态验证失败');
       }
     },
   });
@@ -334,6 +429,7 @@ export function LoginCredentialsSection() {
       }),
     onSuccess: data => {
       handledDouyinBrowserSessionIdRef.current = null;
+      awaitingDouyinValidationRef.current = false;
       setDouyinVerificationCode('');
       setDouyinBrowserSessionId(data.sessionId);
       toast.success('抖音登录窗口已启动');
@@ -366,8 +462,10 @@ export function LoginCredentialsSection() {
     mutationFn: api.logoutDouyin,
     onSuccess: () => {
       setLastVerification(null);
+      awaitingDouyinValidationRef.current = false;
+      setDouyinBrowserSessionId(null);
       queryClient.invalidateQueries({ queryKey: ['douyin', 'auth', 'status'] });
-      toast.success('抖音凭证已清除');
+      toast.success('抖音浏览器登录状态已清除');
     },
   });
 
@@ -384,8 +482,9 @@ export function LoginCredentialsSection() {
     handledDouyinBrowserSessionIdRef.current =
       douyinBrowserLoginStatus.sessionId;
     if (douyinBrowserLoginStatus.status === 'authenticated') {
+      awaitingDouyinValidationRef.current = true;
       queryClient.invalidateQueries({ queryKey: ['douyin', 'auth', 'status'] });
-      toast.success('抖音登录凭证已保存');
+      toast.info('登录操作已完成，正在确认账号登录态');
     } else if (douyinBrowserLoginStatus.status === 'expired') {
       toast.error('抖音登录已超时');
     } else if (douyinBrowserLoginStatus.status === 'failed') {
@@ -395,6 +494,20 @@ export function LoginCredentialsSection() {
     douyinBrowserLoginStatus,
     queryClient,
   ]);
+
+  useEffect(() => {
+    if (!awaitingDouyinValidationRef.current) {
+      return;
+    }
+
+    if (douyinAuthState === 'valid') {
+      awaitingDouyinValidationRef.current = false;
+      toast.success('抖音账号登录态验证通过');
+    } else if (douyinAuthState === 'expired') {
+      awaitingDouyinValidationRef.current = false;
+      toast.error('抖音登录会话已失效，请重新登录');
+    }
+  }, [douyinAuthState]);
 
   useEffect(() => {
     const openFromLocation = () => {
@@ -428,9 +541,8 @@ export function LoginCredentialsSection() {
 
   const bilibiliActive =
     Boolean(bilibiliStatus?.isAuthenticated) && !bilibiliStatus?.tokenExpired;
-  const douyinActive = Boolean(douyinStatus?.isAuthenticated);
-  const isDouyinDatabaseCredential = douyinStatus?.source === 'database';
-  const isSavingDouyin = saveDouyinMutation.isPending;
+  const canClearDouyin =
+    douyinAuthState !== 'unconfigured' && douyinStatus?.source !== 'config';
   const isVerifyingDouyin = verifyDouyinMutation.isPending;
   const isClearingDouyin = clearDouyinMutation.isPending;
   const isStartingDouyinLogin = startDouyinBrowserLoginMutation.isPending;
@@ -513,7 +625,7 @@ export function LoginCredentialsSection() {
         <CredentialPanel
           id="douyin-credentials"
           title="抖音直播登录"
-          description="用于抖音直播间页面验证和取流请求"
+          description={getDouyinAuthDescription(douyinAuthState)}
           badges={
             <>
               {isLoadingDouyin ? (
@@ -522,10 +634,13 @@ export function LoginCredentialsSection() {
                   检查中
                 </Badge>
               ) : (
-                <CredentialBadge active={douyinActive} />
+                <DouyinAuthBadge state={douyinAuthState} />
               )}
               {douyinStatus?.source === 'config' && (
-                <Badge variant="secondary">配置文件</Badge>
+                <Badge variant="secondary">旧版配置</Badge>
+              )}
+              {douyinStatus?.profilePersistent && (
+                <Badge variant="secondary">会话已持久化</Badge>
               )}
               <BrowserLoginBadge status={douyinBrowserLoginStatus?.status} />
             </>
@@ -534,6 +649,43 @@ export function LoginCredentialsSection() {
           onToggle={() => toggleCredential('douyin')}
         >
           <div className="space-y-4">
+            {douyinStatus?.browserHealthy === false && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  持久化浏览器服务当前不可用。系统不会把此故障误判为登录失效，请先恢复 Browser 服务。
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {douyinAuthState === 'validating' && (
+              <Alert>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <AlertDescription>
+                  正在同一个持久化浏览器环境中调用账号接口，确认成功前不会标记为已登录。
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {douyinAuthState === 'challenged' && (
+              <Alert className="border-amber-500/60">
+                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                <AlertDescription>
+                  {douyinStatus?.lastValidationError ||
+                    '抖音要求完成二次验证。点击“继续验证”，后续操作会由系统代理。'}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {douyinAuthState === 'expired' && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  登录会话已经失效，请重新登录。系统不会继续使用旧 Cookie 假装已认证。
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="space-y-2 sm:max-w-sm">
                 <Label htmlFor="douyin-room-id">验证直播间</Label>
@@ -551,7 +703,8 @@ export function LoginCredentialsSection() {
                   variant="outline"
                   onClick={() => verifyDouyinMutation.mutate()}
                   disabled={
-                    isVerifyingDouyin || (!douyinActive && !douyinCookie.trim())
+                    isVerifyingDouyin ||
+                    douyinAuthState === 'unconfigured'
                   }
                 >
                   {isVerifyingDouyin ? (
@@ -559,37 +712,25 @@ export function LoginCredentialsSection() {
                   ) : (
                     <ShieldCheck className="mr-2 h-4 w-4" />
                   )}
-                  验证
+                  检查登录态
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => clearDouyinMutation.mutate()}
-                  disabled={isClearingDouyin || !isDouyinDatabaseCredential}
+                  disabled={isClearingDouyin || !canClearDouyin}
                 >
                   {isClearingDouyin ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Trash2 className="mr-2 h-4 w-4" />
                   )}
-                  清除
+                  退出登录
                 </Button>
               </div>
             </div>
 
-            <Tabs defaultValue="browser" className="space-y-4">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
-                <TabsTrigger value="browser">
-                  <QrCode className="h-4 w-4" />
-                  扫码登录
-                </TabsTrigger>
-                <TabsTrigger value="manual">
-                  <Save className="h-4 w-4" />
-                  手动 Cookie
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="browser" className="space-y-4">
+            <div className="space-y-4">
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -597,7 +738,9 @@ export function LoginCredentialsSection() {
                         type="button"
                         onClick={() => startDouyinBrowserLoginMutation.mutate()}
                         disabled={
-                          isStartingDouyinLogin || hasActiveDouyinBrowserSession
+                          isStartingDouyinLogin ||
+                          hasActiveDouyinBrowserSession ||
+                          douyinStatus?.browserHealthy === false
                         }
                       >
                         {isStartingDouyinLogin ? (
@@ -605,7 +748,12 @@ export function LoginCredentialsSection() {
                         ) : (
                           <QrCode className="mr-2 h-4 w-4" />
                         )}
-                        开始登录
+                        {douyinAuthState === 'challenged'
+                          ? '继续验证'
+                          : douyinAuthState === 'expired' ||
+                              douyinAuthState === 'valid'
+                            ? '重新登录'
+                            : '开始登录'}
                       </Button>
                       <Button
                         type="button"
@@ -803,42 +951,22 @@ export function LoginCredentialsSection() {
                     )}
                   </div>
                 </div>
-              </TabsContent>
-
-              <TabsContent value="manual" className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="douyin-cookie">Cookie</Label>
-                  <Textarea
-                    id="douyin-cookie"
-                    value={douyinCookie}
-                    onChange={event => setDouyinCookie(event.target.value)}
-                    placeholder="ttwid=...; passport_csrf_token=...; sessionid=..."
-                    className="min-h-28 resize-y font-mono text-xs"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => saveDouyinMutation.mutate()}
-                  disabled={isSavingDouyin || !douyinCookie.trim()}
-                >
-                  {isSavingDouyin ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  保存并验证
-                </Button>
-              </TabsContent>
-            </Tabs>
+            </div>
 
             <div className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <span className="text-muted-foreground">已保存字段：</span>
+                <span className="text-muted-foreground">会话字段（诊断）：</span>
                 <CookieNames names={douyinStatus?.cookieNames} />
               </div>
               <div>
                 <span className="text-muted-foreground">最近验证：</span>
-                <span>{formatDateTime(douyinStatus?.verifiedAt)}</span>
+                <span>
+                  {formatDateTime(
+                    douyinStatus?.validatedAt ||
+                      douyinStatus?.lastValidatedAt ||
+                      douyinStatus?.verifiedAt
+                  )}
+                </span>
               </div>
             </div>
 
@@ -853,15 +981,6 @@ export function LoginCredentialsSection() {
                   {lastVerification.ok
                     ? `验证通过，HTTP ${lastVerification.statusCode || 200}`
                     : lastVerification.error || '验证失败'}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {douyinStatus?.lastValidationError && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  {douyinStatus.lastValidationError}
                 </AlertDescription>
               </Alert>
             )}

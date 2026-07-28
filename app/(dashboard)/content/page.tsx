@@ -2,6 +2,7 @@
 
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
+import { PaginationControls } from '@/components/shared/pagination-controls';
 import { PlatformIcon } from '@/components/shared/platform-icon';
 import {
   AlertDialog,
@@ -41,7 +42,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useDeleteJob, useJobBrowse, useJobStreamers, useJobVideos } from '@/hooks';
 import { formatDuration, formatTime } from '@/lib/format';
-import type { BrowsedJob, BilibiliSubmission } from '@/types';
+import type { BrowsedJob } from '@/types';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import {
@@ -56,7 +57,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { JobVideoDialog } from '../../../components/content/job-video-dialog';
 import { SubmitDialog } from '../../../components/content/submit-dialog';
 
@@ -69,6 +70,8 @@ export default function ContentPage() {
   const [deleteJob, setDeleteJob] = useState<BrowsedJob | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'cards' | 'list'>('cards');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24);
 
   // Filters (actual values used for API requests)
   const [streamerName, setStreamerName] = useState<string>('all');
@@ -85,28 +88,30 @@ export default function ContentPage() {
   const [tempEndDate, setTempEndDate] = useState<Date | undefined>();
 
   const { data: streamers } = useJobStreamers();
-  const { data: groups, isLoading, error } = useJobBrowse({
+  const {
+    data: browseData,
+    isLoading,
+    isFetching,
+    error,
+  } = useJobBrowse({
     streamerName: streamerName === 'all' ? undefined : streamerName,
     startDate: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
     endDate: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
     minSegmentCount: segmentFilterEnabled ? minSegmentCount : undefined,
+    page,
+    pageSize,
   });
+  const groups = browseData?.data;
+  const visibleJobCount =
+    groups?.reduce((count, group) => count + group.jobs.length, 0) || 0;
   const { data: jobVideos, isLoading: videosLoading } = useJobVideos(selectedJobId);
   const deleteMutation = useDeleteJob();
 
-  // Sync temp dates when popover opens
-  useEffect(() => {
-    if (datePickerOpen) {
-      setTempStartDate(startDate);
-      setTempEndDate(endDate);
-    }
-  }, [datePickerOpen, startDate, endDate]);
-
-  // Reset when job changes
-  useEffect(() => {
+  const openJobVideos = (jobId: string, autoPlay: boolean) => {
+    setSelectedJobId(jobId);
     setCurrentVideoIndex(0);
-    setShouldAutoPlay(false);
-  }, [selectedJobId]);
+    setShouldAutoPlay(autoPlay);
+  };
 
   // Handle video ended - play next
   const handleVideoEnded = () => {
@@ -140,6 +145,7 @@ export default function ContentPage() {
   // Close dialog
   const handleClose = () => {
     setSelectedJobId(null);
+    setCurrentVideoIndex(0);
     setShouldAutoPlay(false);
   };
 
@@ -150,10 +156,11 @@ export default function ContentPage() {
     setEndDate(undefined);
     setSegmentFilterEnabled(false);
     setMinSegmentCount(3);
+    setPage(1);
   };
 
   // Handle submit success
-  const handleSubmitSuccess = (submission: BilibiliSubmission) => {
+  const handleSubmitSuccess = () => {
     setSubmitJob(null);
     setSubmitDialogOpen(false);
   };
@@ -174,16 +181,18 @@ export default function ContentPage() {
       return;
     }
 
+    const shouldGoToPreviousPage = visibleJobCount === 1 && page > 1;
     await deleteMutation.mutateAsync(deleteJob.id);
     setDeleteDialogOpen(false);
     setDeleteJob(null);
+    if (shouldGoToPreviousPage) {
+      setPage((current) => current - 1);
+    }
   };
 
   // Handle download
   const handleDownload = (job: BrowsedJob) => {
-    setSelectedJobId(job.id);
-    setCurrentVideoIndex(0);
-    setShouldAutoPlay(false);
+    openJobVideos(job.id, false);
   };
 
   const hasFilters = streamerName !== 'all' || startDate || endDate || segmentFilterEnabled;
@@ -218,7 +227,13 @@ export default function ContentPage() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           {/* Streamer Filter */}
-          <Select value={streamerName} onValueChange={setStreamerName}>
+          <Select
+            value={streamerName}
+            onValueChange={(value) => {
+              setStreamerName(value);
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="全部主播" />
             </SelectTrigger>
@@ -233,7 +248,16 @@ export default function ContentPage() {
           </Select>
 
           {/* Date Range Filter */}
-          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <Popover
+            open={datePickerOpen}
+            onOpenChange={(open) => {
+              setDatePickerOpen(open);
+              if (open) {
+                setTempStartDate(startDate);
+                setTempEndDate(endDate);
+              }
+            }}
+          >
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-[180px] justify-start">
                 <Calendar className="h-4 w-4 mr-2" />
@@ -258,6 +282,7 @@ export default function ContentPage() {
                     onClick={() => {
                       setStartDate(tempStartDate);
                       setEndDate(tempEndDate);
+                      setPage(1);
                       setDatePickerOpen(false);
                     }}
                   >
@@ -283,7 +308,10 @@ export default function ContentPage() {
             <Switch
               id="segment-filter"
               checked={segmentFilterEnabled}
-              onCheckedChange={setSegmentFilterEnabled}
+              onCheckedChange={(checked) => {
+                setSegmentFilterEnabled(checked);
+                setPage(1);
+              }}
             />
             <label
               htmlFor="segment-filter"
@@ -295,7 +323,10 @@ export default function ContentPage() {
               type="number"
               min="1"
               value={minSegmentCount}
-              onChange={(e) => setMinSegmentCount(parseInt(e.target.value) || 1)}
+              onChange={(e) => {
+                setMinSegmentCount(parseInt(e.target.value) || 1);
+                setPage(1);
+              }}
               disabled={!segmentFilterEnabled}
               className="w-16 h-8"
             />
@@ -376,10 +407,7 @@ export default function ContentPage() {
                     <JobCard
                       key={job.id}
                       job={job}
-                      onPlay={() => {
-                        setSelectedJobId(job.id);
-                        setShouldAutoPlay(true);
-                      }}
+                      onPlay={() => openJobVideos(job.id, true)}
                       onSubmit={() => openSubmitDialog(job)}
                       onDownload={() => handleDownload(job)}
                       onDelete={() => openDeleteDialog(job)}
@@ -389,10 +417,7 @@ export default function ContentPage() {
               ) : (
                 <JobTable
                   jobs={group.jobs}
-                  onPlay={(job) => {
-                    setSelectedJobId(job.id);
-                    setShouldAutoPlay(true);
-                  }}
+                  onPlay={(job) => openJobVideos(job.id, true)}
                   onSubmit={openSubmitDialog}
                   onDownload={handleDownload}
                   onDelete={openDeleteDialog}
@@ -401,6 +426,21 @@ export default function ContentPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {browseData && browseData.total > 0 && (
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          total={browseData.total}
+          pageSizeOptions={[24, 48, 96]}
+          disabled={isFetching}
+          onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
+        />
       )}
 
       <JobVideoDialog

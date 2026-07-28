@@ -5,6 +5,7 @@ import { ErrorTooltipText } from '@/components/shared/error-tooltip-text';
 import { JobTableRow } from '@/components/shared/job-table-row';
 import { TableSkeleton } from '@/components/shared/loading';
 import { PageHeader } from '@/components/shared/page-header';
+import { PaginationControls } from '@/components/shared/pagination-controls';
 import { PlatformIcon } from '@/components/shared/platform-icon';
 import { QualityBadge } from '@/components/shared/quality-badge';
 import { StatusBadge } from '@/components/shared/status-badge';
@@ -50,18 +51,22 @@ import { useState } from 'react';
 
 export default function JobsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [jobToAction, setJobToAction] = useState<Job | null>(null);
 
-  const { data: jobsData, isLoading } = useJobs(
-    statusFilter !== 'all'
-      ? { status: statusFilter as JobStatus, pageSize: 1000 }
-      : { pageSize: 1000 }
-  );
+  const { data: jobsData, isLoading, isFetching } = useJobs({
+    status:
+      statusFilter !== 'all' ? (statusFilter as JobStatus) : undefined,
+    page,
+    pageSize,
+  });
 
   const jobs = jobsData?.data || [];
+  const total = jobsData?.total || 0;
   const activeSelectedJob = selectedJob
     ? jobs.find((job) => job.id === selectedJob.id) ?? selectedJob
     : null;
@@ -84,9 +89,13 @@ export default function JobsPage() {
 
   const handleDelete = async () => {
     if (jobToAction) {
+      const shouldGoToPreviousPage = jobs.length === 1 && page > 1;
       await deleteMutation.mutateAsync(jobToAction.id);
       setDeleteDialogOpen(false);
       setJobToAction(null);
+      if (shouldGoToPreviousPage) {
+        setPage((current) => current - 1);
+      }
     }
   };
 
@@ -105,7 +114,13 @@ export default function JobsPage() {
         title="录制任务"
         description="查看和管理录制任务"
         actions={
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value);
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="筛选状态" />
             </SelectTrigger>
@@ -127,39 +142,54 @@ export default function JobsPage() {
           description="还没有任何录制任务"
         />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>直播间号</TableHead>
-              <TableHead>主播</TableHead>
-              <TableHead>平台</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>进度</TableHead>
-              <TableHead>开始时间</TableHead>
-              <TableHead>时长</TableHead>
-              <TableHead className="min-w-[220px]">投稿</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {jobs.map((job) => (
-              <JobTableRow
-                key={job.id}
-                job={job}
-                onClick={setSelectedJob}
-                onStop={(job) => {
-                  setJobToAction(job);
-                  setStopDialogOpen(true);
-                }}
-                onRetry={handleRetry}
-                onDelete={(job) => {
-                  setJobToAction(job);
-                  setDeleteDialogOpen(true);
-                }}
-              />
-            ))}
-          </TableBody>
-        </Table>
+        <div className="space-y-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>直播间号</TableHead>
+                <TableHead>主播</TableHead>
+                <TableHead>平台</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>进度</TableHead>
+                <TableHead>开始时间</TableHead>
+                <TableHead>时长</TableHead>
+                <TableHead className="min-w-[220px]">投稿</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobs.map((job) => (
+                <JobTableRow
+                  key={job.id}
+                  job={job}
+                  onClick={setSelectedJob}
+                  onStop={(job) => {
+                    setJobToAction(job);
+                    setStopDialogOpen(true);
+                  }}
+                  onRetry={handleRetry}
+                  onDelete={(job) => {
+                    setJobToAction(job);
+                    setDeleteDialogOpen(true);
+                  }}
+                />
+              ))}
+            </TableBody>
+          </Table>
+
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            pageSizeOptions={[25, 50, 100]}
+            disabled={isFetching}
+            onPageChange={setPage}
+            onPageSizeChange={(value) => {
+              setPageSize(value);
+              setPage(1);
+            }}
+          />
+        </div>
       )}
 
       {/* Job Detail Dialog */}

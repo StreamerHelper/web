@@ -3,7 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib';
-import type { JobFilterValues, Job, Platform } from '@/types';
+import type {
+  JobBrowseFilterValues,
+  JobFilterValues,
+  Job,
+  Platform,
+} from '@/types';
 
 const ACTIVE_SUBMISSION_STATUSES = ['pending', 'uploading', 'submitting'];
 
@@ -56,7 +61,7 @@ export function useJob(id: string) {
   });
 }
 
-export function useJobBrowse(filters?: { streamerName?: string; startDate?: string; endDate?: string; minSegmentCount?: number }) {
+export function useJobBrowse(filters?: JobBrowseFilterValues) {
   return useQuery({
     queryKey: ['jobs', 'browse', filters],
     queryFn: () => api.getJobBrowse(filters),
