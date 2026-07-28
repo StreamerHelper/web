@@ -294,7 +294,7 @@ const DOUYIN_VERIFICATION_METHODS: Array<{
   },
   {
     value: 'face',
-    label: '手机刷脸验证',
+    label: '手机刷脸认证',
     description: '按手机端提示完成人脸验证',
   },
   {
@@ -442,11 +442,37 @@ export function LoginCredentialsSection() {
         douyinBrowserSessionId!,
         interaction
       ),
+    onMutate: async () => {
+      if (douyinBrowserSessionId) {
+        await queryClient.cancelQueries({
+          queryKey: [
+            'douyin',
+            'auth',
+            'browser-login',
+            douyinBrowserSessionId,
+          ],
+          exact: true,
+        });
+      }
+    },
     onSuccess: data => {
       queryClient.setQueryData(
         ['douyin', 'auth', 'browser-login', data.sessionId],
         data
       );
+    },
+    onSettled: () => {
+      if (douyinBrowserSessionId) {
+        queryClient.invalidateQueries({
+          queryKey: [
+            'douyin',
+            'auth',
+            'browser-login',
+            douyinBrowserSessionId,
+          ],
+          exact: true,
+        });
+      }
     },
   });
 
@@ -558,6 +584,17 @@ export function LoginCredentialsSection() {
           douyinBrowserLoginStatus.screenshotUpdatedAt
         )
       : null;
+  const douyinVerification = douyinBrowserLoginStatus?.verification;
+  const availableDouyinVerificationOptions =
+    DOUYIN_VERIFICATION_METHODS.filter(option =>
+      (douyinVerification?.availableMethods || []).includes(option.value)
+    );
+  const isDouyinSecondaryVerification =
+    douyinVerification?.challenge === 'second_verification';
+  const canProxyDouyinVerification =
+    isDouyinSecondaryVerification &&
+    (availableDouyinVerificationOptions.length > 0 ||
+      Boolean(douyinVerification?.method));
   const selectDouyinVerificationMethod = (
     method: DouyinVerificationMethod
   ) => {
@@ -781,81 +818,81 @@ export function LoginCredentialsSection() {
                           <Alert>
                             <ShieldCheck className="h-4 w-4" />
                             <AlertDescription>
-                              扫码已完成。后续验证由系统代理，不需要操作右侧登录画面。
+                              {canProxyDouyinVerification
+                                ? '扫码已完成。后续验证由系统代理，不需要操作右侧登录画面。'
+                                : douyinVerification?.prompt ||
+                                  '抖音要求完成安全验证。'}
                             </AlertDescription>
                           </Alert>
 
-                          {(!douyinBrowserLoginStatus.verification?.method ||
-                            douyinBrowserLoginStatus.verification.stage ===
-                              'choose_method') && (
+                          {isDouyinSecondaryVerification &&
+                            (!douyinVerification?.method ||
+                              douyinVerification.stage ===
+                                'choose_method') && (
                             <div className="space-y-3">
                               <Label>选择验证方式</Label>
-                              <div className="grid gap-2">
-                                {DOUYIN_VERIFICATION_METHODS.map(option => {
-                                  const availableMethods =
-                                    douyinBrowserLoginStatus.verification
-                                      ?.availableMethods;
-                                  const isAvailable =
-                                    !availableMethods?.length ||
-                                    availableMethods.includes(option.value);
-                                  return (
-                                    <Button
-                                      key={option.value}
-                                      type="button"
-                                      variant={
-                                        option.default ? 'default' : 'outline'
-                                      }
-                                      className="h-auto justify-start py-3 text-left"
-                                      onClick={() =>
-                                        selectDouyinVerificationMethod(
-                                          option.value
-                                        )
-                                      }
-                                      disabled={
-                                        !isAvailable ||
-                                        interactWithDouyinBrowserLoginMutation.isPending
-                                      }
-                                    >
-                                      <span className="space-y-0.5">
-                                        <span className="flex items-center gap-2 font-medium">
-                                          {option.label}
-                                          {option.default && (
-                                            <Badge
-                                              variant="secondary"
-                                              className="text-[10px]"
-                                            >
-                                              默认
-                                            </Badge>
-                                          )}
+                              {availableDouyinVerificationOptions.length ? (
+                                <div className="grid gap-2">
+                                  {availableDouyinVerificationOptions.map(
+                                    option => (
+                                      <Button
+                                        key={option.value}
+                                        type="button"
+                                        variant={
+                                          option.default ? 'default' : 'outline'
+                                        }
+                                        className="h-auto justify-start py-3 text-left"
+                                        onClick={() =>
+                                          selectDouyinVerificationMethod(
+                                            option.value
+                                          )
+                                        }
+                                        disabled={
+                                          interactWithDouyinBrowserLoginMutation.isPending
+                                        }
+                                      >
+                                        <span className="space-y-0.5">
+                                          <span className="flex items-center gap-2 font-medium">
+                                            {option.label}
+                                            {option.default && (
+                                              <Badge
+                                                variant="secondary"
+                                                className="text-[10px]"
+                                              >
+                                                默认
+                                              </Badge>
+                                            )}
+                                          </span>
+                                          <span className="block text-xs font-normal opacity-80">
+                                            {option.description}
+                                          </span>
                                         </span>
-                                        <span className="block text-xs font-normal opacity-80">
-                                          {option.description}
-                                        </span>
-                                      </span>
-                                    </Button>
-                                  );
-                                })}
-                              </div>
+                                      </Button>
+                                    )
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  {douyinVerification?.prompt ||
+                                    '正在读取抖音提供的验证方式…'}
+                                </div>
+                              )}
                             </div>
                           )}
 
-                          {douyinBrowserLoginStatus.verification?.stage ===
-                            'processing' && (
+                          {douyinVerification?.stage === 'processing' && (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Loader2 className="h-4 w-4 animate-spin" />
                               正在进入所选验证方式…
                             </div>
                           )}
 
-                          {douyinBrowserLoginStatus.verification?.stage ===
-                            'awaiting_code' && (
+                          {douyinVerification?.stage === 'awaiting_code' && (
                             <div className="space-y-3">
-                              {douyinBrowserLoginStatus.verification.prompt && (
+                              {douyinVerification.prompt && (
                                 <p className="text-sm text-muted-foreground">
-                                  {
-                                    douyinBrowserLoginStatus.verification
-                                      .prompt
-                                  }
+                                  {douyinVerification.prompt}
                                 </p>
                               )}
                               <div className="space-y-2">
@@ -905,12 +942,12 @@ export function LoginCredentialsSection() {
                             </div>
                           )}
 
-                          {douyinBrowserLoginStatus.verification?.stage ===
+                          {douyinVerification?.stage ===
                             'awaiting_external' && (
                             <Alert>
                               <ShieldCheck className="h-4 w-4" />
                               <AlertDescription className="whitespace-pre-wrap">
-                                {douyinBrowserLoginStatus.verification.prompt ||
+                                {douyinVerification.prompt ||
                                   '请按手机端提示完成验证，系统会自动继续。'}
                               </AlertDescription>
                             </Alert>
@@ -927,7 +964,8 @@ export function LoginCredentialsSection() {
 
                   <div className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-md border bg-background">
                     {douyinBrowserLoginStatus?.status ===
-                    'verification_required' ? (
+                      'verification_required' &&
+                    canProxyDouyinVerification ? (
                       <div className="flex max-w-64 flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
                         <ShieldCheck className="h-10 w-10 text-primary" />
                         <span>

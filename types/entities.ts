@@ -456,6 +456,8 @@ export type DouyinVerificationMethod =
   | 'face'
   | 'send_sms';
 
+export type DouyinProfileChallenge = 'captcha' | 'second_verification';
+
 export type DouyinVerificationStage =
   | 'choose_method'
   | 'processing'
@@ -473,6 +475,7 @@ export type DouyinBrowserLoginInteraction =
     };
 
 export interface DouyinBrowserLoginVerification {
+  challenge: DouyinProfileChallenge;
   stage: DouyinVerificationStage;
   method?: DouyinVerificationMethod;
   availableMethods: DouyinVerificationMethod[];
