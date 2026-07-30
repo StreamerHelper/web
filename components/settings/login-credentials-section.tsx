@@ -423,9 +423,10 @@ export function LoginCredentialsSection() {
   });
 
   const startDouyinBrowserLoginMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (fresh: boolean) =>
       api.startDouyinBrowserLogin({
         roomId: douyinRoomId.trim() || undefined,
+        fresh,
       }),
     onSuccess: data => {
       handledDouyinBrowserSessionIdRef.current = null;
@@ -741,7 +742,8 @@ export function LoginCredentialsSection() {
                   onClick={() => verifyDouyinMutation.mutate()}
                   disabled={
                     isVerifyingDouyin ||
-                    douyinAuthState === 'unconfigured'
+                    douyinAuthState === 'unconfigured' ||
+                    hasActiveDouyinBrowserSession
                   }
                 >
                   {isVerifyingDouyin ? (
@@ -773,8 +775,13 @@ export function LoginCredentialsSection() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
-                        onClick={() => startDouyinBrowserLoginMutation.mutate()}
+                        onClick={() =>
+                          startDouyinBrowserLoginMutation.mutate(
+                            douyinAuthState !== 'challenged'
+                          )
+                        }
                         disabled={
+                          isLoadingDouyin ||
                           isStartingDouyinLogin ||
                           hasActiveDouyinBrowserSession ||
                           douyinStatus?.browserHealthy === false
@@ -792,6 +799,24 @@ export function LoginCredentialsSection() {
                             ? '重新登录'
                             : '开始登录'}
                       </Button>
+                      {douyinAuthState === 'challenged' && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            startDouyinBrowserLoginMutation.mutate(true)
+                          }
+                          disabled={
+                            isLoadingDouyin ||
+                            isStartingDouyinLogin ||
+                            hasActiveDouyinBrowserSession ||
+                            douyinStatus?.browserHealthy === false
+                          }
+                        >
+                          <QrCode className="mr-2 h-4 w-4" />
+                          换号重新登录
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         variant="outline"
@@ -884,7 +909,8 @@ export function LoginCredentialsSection() {
                           {douyinVerification?.stage === 'processing' && (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Loader2 className="h-4 w-4 animate-spin" />
-                              正在进入所选验证方式…
+                              {douyinVerification.prompt ||
+                                '正在等待抖音确认账号登录态…'}
                             </div>
                           )}
 
@@ -969,7 +995,7 @@ export function LoginCredentialsSection() {
                       <div className="flex max-w-64 flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
                         <ShieldCheck className="h-10 w-10 text-primary" />
                         <span>
-                          验证操作已由系统代理，请在左侧选择验证方式。
+                          验证操作已由系统代理，请在左侧完成当前验证步骤。
                         </span>
                       </div>
                     ) : douyinLoginScreenshotUrl ? (

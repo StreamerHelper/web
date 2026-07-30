@@ -232,7 +232,10 @@ export const api = {
     (await client.get<DouyinAuthStatus>('/api/douyin/auth/status')).data,
   verifyDouyinProfile: async (data?: { roomId?: string }) =>
     (await client.post<DouyinProfileVerification>('/api/douyin/auth/verify', data || {})).data,
-  startDouyinBrowserLogin: async (data?: { roomId?: string }) =>
+  startDouyinBrowserLogin: async (data?: {
+    roomId?: string;
+    fresh?: boolean;
+  }) =>
     (await client.post<DouyinBrowserLoginStatus>('/api/douyin/auth/browser-login', data || {})).data,
   getDouyinBrowserLoginStatus: async (sessionId: string) =>
     (await client.get<DouyinBrowserLoginStatus>(`/api/douyin/auth/browser-login/${encodeURIComponent(sessionId)}`)).data,
