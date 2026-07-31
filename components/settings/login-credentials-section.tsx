@@ -375,7 +375,6 @@ export function LoginCredentialsSection() {
   >(null);
   const [douyinVerificationCode, setDouyinVerificationCode] = useState('');
   const handledDouyinBrowserSessionIdRef = useRef<string | null>(null);
-  const awaitingDouyinValidationRef = useRef(false);
   const [lastVerification, setLastVerification] =
     useState<DouyinProfileVerification | null>(null);
 
@@ -430,7 +429,6 @@ export function LoginCredentialsSection() {
       }),
     onSuccess: data => {
       handledDouyinBrowserSessionIdRef.current = null;
-      awaitingDouyinValidationRef.current = false;
       setDouyinVerificationCode('');
       setDouyinBrowserSessionId(data.sessionId);
       toast.success('抖音登录窗口已启动');
@@ -489,7 +487,6 @@ export function LoginCredentialsSection() {
     mutationFn: api.logoutDouyin,
     onSuccess: () => {
       setLastVerification(null);
-      awaitingDouyinValidationRef.current = false;
       setDouyinBrowserSessionId(null);
       queryClient.invalidateQueries({ queryKey: ['douyin', 'auth', 'status'] });
       toast.success('抖音浏览器登录状态已清除');
@@ -509,32 +506,14 @@ export function LoginCredentialsSection() {
     handledDouyinBrowserSessionIdRef.current =
       douyinBrowserLoginStatus.sessionId;
     if (douyinBrowserLoginStatus.status === 'authenticated') {
-      awaitingDouyinValidationRef.current = true;
       queryClient.invalidateQueries({ queryKey: ['douyin', 'auth', 'status'] });
-      toast.info('登录操作已完成，正在确认账号登录态');
+      toast.success('抖音账号登录态验证通过');
     } else if (douyinBrowserLoginStatus.status === 'expired') {
       toast.error('抖音登录已超时');
     } else if (douyinBrowserLoginStatus.status === 'failed') {
       toast.error(douyinBrowserLoginStatus.error || '抖音登录失败');
     }
-  }, [
-    douyinBrowserLoginStatus,
-    queryClient,
-  ]);
-
-  useEffect(() => {
-    if (!awaitingDouyinValidationRef.current) {
-      return;
-    }
-
-    if (douyinAuthState === 'valid') {
-      awaitingDouyinValidationRef.current = false;
-      toast.success('抖音账号登录态验证通过');
-    } else if (douyinAuthState === 'expired') {
-      awaitingDouyinValidationRef.current = false;
-      toast.error('抖音登录会话已失效，请重新登录');
-    }
-  }, [douyinAuthState]);
+  }, [douyinBrowserLoginStatus, queryClient]);
 
   useEffect(() => {
     const openFromLocation = () => {
